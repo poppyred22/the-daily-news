@@ -87,7 +87,7 @@ def clean_text(value):
     value = re.sub(r"<[^>]+>", " ", value)
     return re.sub(r"\s+", " ", value).strip()
 
-def fetch_feed(source, url):
+def fetch_feed(source, url, target_date):
     req = urllib.request.Request(url, headers={
         "User-Agent": "TheDailyNews/1.0 (+https://poppyred22.github.io/the-daily-news/)",
         "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
@@ -115,10 +115,10 @@ def fetch_feed(source, url):
                     raw_date = "".join(child.itertext()).strip()
                     break
         dt = parse_date(raw_date)
-        if not title or not link or not dt or dt.date().isoformat() != TODAY:
+        if not title or not link or not dt or dt.date().isoformat() != target_date or dt > datetime.now(KST):
             continue
         embedded_date = re.search(r"(20\d{2})(0[1-9]|1[0-2])([0-3]\d)", link)
-        if embedded_date and "".join(embedded_date.groups()) != TODAY.replace("-", ""):
+        if embedded_date and "".join(embedded_date.groups()) != target_date.replace("-", ""):
             continue
         description = clean_text(child_text(node, {"description", "summary", "encoded", "content"}))
         rows.append({
@@ -179,35 +179,47 @@ def choose_diverse(rows, limit=10):
     return sorted(chosen[:limit], key=lambda row: row["pubDate"], reverse=True)
 
 def main():
-    categories = {name: [] for name in FEEDS}
-    event_pattern = re.compile(r"사고|화재|붕괴|추락|충돌|추돌|침수|폭발|실종|구조|재난|참사|사망|부상|교통사고|범죄|폭행|절도|사기|스토킹|살해|소방|응급|인명피해|학대|유괴|검거")
+    today = datetime.now(KST).date()
+    targets = [
+        ("today", today),
+        ("yesterday", today.fromordinal(today.toordinal() - 1)),
+    ]
+    weekday_ko = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
+    all_days = {}
     diagnostics = {}
-    for category, sources in FEEDS.items():
-        seen = set()
-        for source, url in sources:
-            try:
-                rows = fetch_feed(source, url)
-                diagnostics[source + ":" + category] = {"ok": True, "today_items": len(rows)}
-                for row in rows:
-                    combined = row["title"] + " " + row["description"]
-                    if re.search(r"기뢰|폭탄|폭발물|총기|권총|소총|탄약|수류탄|콜라색 소변|피투성이|시신|시체|참수|절단|훼손", combined):
-                        continue
-                    if category == "사건 사고" and (not event_pattern.search(combined) or re.search(r"증시|주가|코스피|코스닥|장관 후보자|검찰개혁|특검법|조작기소|시상식|수상|성폭행|성범죄|강간|성추행", combined)):
-                        continue
-                    if category == "생활 문화" and (article_score(category, row) < 2 or re.search(r"주식|증시|코스피|코스닥|증권|투자자|특검|검찰|대통령|국회|장관|정당|후보자|살해|폭행|화재|사망|사건", combined)):
-                        continue
-                    key = re.sub(r"\W+", "", row["title"].lower())
-                    link = row["link"].split("?", 1)[0].rstrip("/")
-                    if key in seen or link in seen:
-                        continue
-                    seen.add(key)
-                    seen.add(link)
-                    row["category"] = category
-                    categories[category].append(row)
-            except Exception as exc:
-                diagnostics[source + ":" + category] = {"ok": False, "error": str(exc)[:180]}
-            time.sleep(0.15)
-        if TODAY == "2026-11-06":
+
+    event_pattern = re.compile(r"사고|화재|붕괴|추락|충돌|추돌|침수|폭발|실종|구조|재난|참사|사망|부상|교통사고|범죄|폭행|절도|사기|스토킹|살해|소방|응급|인명피해|학대|유괴|검거")
+
+    for day_key, day_value in targets:
+        target_date = day_value.isoformat()
+        categories = {name: [] for name in FEEDS}
+        for category, sources in FEEDS.items():
+            seen = set()
+            for source, url in sources:
+                try:
+                    rows = fetch_feed(source, url, target_date)
+                    diagnostics[f"{target_date}:{source}:{category}"] = {"ok": True, "items": len(rows)}
+                    for row in rows:
+                        combined = row["title"] + " " + row["description"]
+                        if re.search(r"기뢰|폭탄|폭발물|총기|권총|소총|탄약|수류탄|콜라색 소변|피투성이|시신|시체|참수|절단|훼손", combined):
+                            continue
+                        if category == "사건 사고" and (not event_pattern.search(combined) or re.search(r"증시|주가|코스피|코스닥|장관 후보자|검찰개혁|특검법|조작기소|시상식|수상|성폭행|성범죄|강간|성추행", combined)):
+                            continue
+                        if category == "생활 문화" and (article_score(category, row) < 2 or re.search(r"주식|증시|코스피|코스닥|증권|투자자|특검|검찰|대통령|국회|장관|정당|후보자|살해|폭행|화재|사망|사건", combined)):
+                            continue
+                        key = re.sub(r"\W+", "", row["title"].lower())
+                        link = row["link"].split("?", 1)[0].rstrip("/")
+                        if key in seen or link in seen:
+                            continue
+                        seen.add(key)
+                        seen.add(link)
+                        row["category"] = category
+                        categories[category].append(row)
+                except Exception as exc:
+                    diagnostics[f"{target_date}:{source}:{category}"] = {"ok": False, "error": str(exc)[:180]}
+                time.sleep(0.12)
+
+        if day_key == "today" and target_date == "2026-11-06":
             verified_today = {
                 "생활 문화": [{
                     "title": "뉴진스 전속계약서 공개 파장…‘부적절한 연애’ 금지·소속사 비판 제한",
@@ -227,31 +239,47 @@ def main():
                     "category": "IT 과학",
                 }],
             }
-            categories[category].extend(verified_today.get(category, []))
-        categories[category] = choose_diverse(categories[category], 10)
+            for cat, rows in verified_today.items():
+                for row in rows:
+                    if not any(existing["link"] == row["link"] for existing in categories[cat]):
+                        categories[cat].append(row)
 
-    total = sum(len(rows) for rows in categories.values())
+        for name in categories:
+            categories[name] = choose_diverse(categories[name], 10)
+
+        total = sum(len(rows) for rows in categories.values())
+        all_days[day_key] = {
+            "date": target_date,
+            "weekday": weekday_ko[day_value.weekday()],
+            "label": ("오늘" if day_key == "today" else "어제") + " · " + f"{day_value.month}월 {day_value.day}일 " + weekday_ko[day_value.weekday()],
+            "total": total,
+            "categories": categories,
+        }
+
+    total = sum(day["total"] for day in all_days.values())
     result = {
-        "date": TODAY,
+        "date": today.isoformat(),
         "generatedAt": datetime.now(KST).isoformat(),
         "total": total,
-        "categories": categories,
+        "days": all_days,
     }
     payload = json.dumps(result, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     with open("news.json", "w", encoding="utf-8") as output:
         output.write(payload)
     with open("index.html", "r", encoding="utf-8") as source:
         page = source.read()
-    marker = re.compile(r"window\.NEWS_DATA\s*=\s*.*?;\s*// UPDATED_AUTOMATICALLY_BY_NEWS_WORKFLOW", re.S)
+    marker = re.compile(r"window\\.NEWS_DATA\\s*=\\s*.*?;\\s*// UPDATED_AUTOMATICALLY_BY_NEWS_WORKFLOW", re.S)
     if not marker.search(page):
         raise SystemExit("NEWS_DATA marker not found in index.html")
     page = marker.sub(lambda _: "window.NEWS_DATA = " + payload + "; // UPDATED_AUTOMATICALLY_BY_NEWS_WORKFLOW", page, count=1)
     with open("index.html", "w", encoding="utf-8") as output:
         output.write(page)
-    print("NEWS_DATE=" + TODAY)
+    print("NEWS_DATE=" + today.isoformat())
     print("NEWS_TOTAL=" + str(total))
-    for name, rows in categories.items():
-        print("CATEGORY " + name + "=" + str(len(rows)))
+    for day_key, day in all_days.items():
+        print(f"DAY {day_key} {day['label']} TOTAL={day['total']}")
+        for name, rows in day["categories"].items():
+            print(f"CATEGORY {day_key} {name}={len(rows)}")
     for name, status in diagnostics.items():
         print("FEED " + name + "=" + json.dumps(status, ensure_ascii=False))
     if not any(item["ok"] for item in diagnostics.values()):
