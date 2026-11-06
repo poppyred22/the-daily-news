@@ -582,7 +582,6 @@ def main():
         # Every story here already has a verified direct Naver News URL.
         for name in categories:
             categories[name] = choose_diverse(categories[name], 10)
-            categories[name] = enrich_descriptions(categories[name])
             for row in categories[name]:
                 if len((row.get("description") or "").strip()) < 70:
                     row["description"] = fallback_summary(row) or (
