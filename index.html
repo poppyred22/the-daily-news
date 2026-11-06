@@ -22,14 +22,48 @@ let category="",items=[],saved=JSON.parse(localStorage.getItem("tdn_saved")||"[]
 const $=s=>document.querySelector(s);
 $("#today").textContent=new Intl.DateTimeFormat("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"short"}).format(new Date());
 function drawTabs(){ $("#tabs").innerHTML=categories.map(([label,q])=>'<button class="'+(category===q?'active':'')+'" data-q="'+q+'">'+label+'</button>').join('')+'<button data-saved="1" class="'+(showSaved?'active':'')+'">★ 저장한 기사</button>'; }
-async function load(){ $("#feed").innerHTML='<div class="empty">국내 언론사 뉴스를 모으는 중…</div>';const feeds={
-"":[["연합뉴스","https://www.yna.co.kr/rss/news.xml"],["경향신문","https://www.khan.co.kr/rss/rssdata/total_news.xml"],["한겨레","https://www.hani.co.kr/rss/"],["동아일보","https://rss.donga.com/total.xml"],["SBS","https://news.sbs.co.kr/news/newsflashRssFeed.do"]],
-"사회":[["경향신문","https://www.khan.co.kr/rss/rssdata/society_news.xml"],["뉴시스","https://www.newsis.com/RSS/society.xml"],["SBS","https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=03&plink=RSSREADER"]],
-"생활 문화":[["경향신문","https://www.khan.co.kr/rss/rssdata/culture_news.xml"],["뉴시스","https://www.newsis.com/RSS/culture.xml"],["SBS","https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=08&plink=RSSREADER"]],
-"사건 사고":[["연합뉴스","https://www.yna.co.kr/rss/news.xml"],["뉴시스","https://www.newsis.com/RSS/sokbo.xml"],["SBS","https://news.sbs.co.kr/news/newsflashRssFeed.do"]],
-"세계":[["경향신문","https://www.khan.co.kr/rss/rssdata/kh_world.xml"],["뉴시스","https://www.newsis.com/RSS/international.xml"],["연합뉴스","https://www.yna.co.kr/rss/news.xml"]],
-"IT 과학":[["경향신문","https://www.khan.co.kr/rss/rssdata/science_news.xml"],["IT동아","https://it.donga.com/feeds/rss/"],["전자신문","https://rss.etnews.com/Section901.xml"],["지디넷코리아","https://feeds.feedburner.com/zdkorea"]]};
-try{const chosen=feeds[category]||feeds[""];const results=await Promise.all(chosen.map(async ([source,url])=>{const response=await fetch("https://proxy.cors.dev/"+url,{credentials:"omit"});if(!response.ok)throw Error(source+" 피드 응답 "+response.status);const xml=new DOMParser().parseFromString(await response.text(),"application/xml");if(xml.querySelector("parsererror"))throw Error(source+" RSS 형식 오류");return [...xml.getElementsByTagName("item")].map(x=>({title:x.getElementsByTagName("title")[0]?.textContent||"",link:x.getElementsByTagName("link")[0]?.textContent||"#",pubDate:x.getElementsByTagName("pubDate")[0]?.textContent||"",author:source,description:x.getElementsByTagName("description")[0]?.textContent||""}))}));let seen=new Set();items=results.flat().filter(x=>{let k=x.title.replace(/\\s+/g,"").toLowerCase();if(!k||seen.has(k))return false;seen.add(k);return true}).sort((a,b)=>new Date(b.pubDate)-new Date(a.pubDate));if(!items.length)throw Error("가져온 기사가 없습니다");render()}catch(e){$("#feed").innerHTML='<div class="empty">뉴스 연결에 실패했어요.<br><small>'+esc(e.message||"연결 오류")+'</small><br>새로고침을 눌러 다시 시도해 주세요.</div>';$("#count").textContent="연결 오류";}}
+async function load(){
+  $("#feed").innerHTML='<div class="empty">국내 언론사 뉴스를 모으는 중…</div>';
+  $("#count").textContent="뉴스 연결 확인 중";
+  const feeds={
+    "":[["연합뉴스","https://www.yna.co.kr/rss/news.xml"],["경향신문","https://www.khan.co.kr/rss/rssdata/total_news.xml"],["한겨레","https://www.hani.co.kr/rss/"],["동아일보","https://rss.donga.com/total.xml"],["SBS","https://news.sbs.co.kr/news/newsflashRssFeed.do"]],
+    "사회":[["경향신문","https://www.khan.co.kr/rss/rssdata/society_news.xml"],["뉴시스","https://www.newsis.com/RSS/society.xml"],["SBS","https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=03&plink=RSSREADER"]],
+    "생활 문화":[["경향신문","https://www.khan.co.kr/rss/rssdata/culture_news.xml"],["뉴시스","https://www.newsis.com/RSS/culture.xml"],["SBS","https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=08&plink=RSSREADER"]],
+    "사건 사고":[["연합뉴스","https://www.yna.co.kr/rss/news.xml"],["뉴시스","https://www.newsis.com/RSS/sokbo.xml"],["SBS","https://news.sbs.co.kr/news/newsflashRssFeed.do"]],
+    "세계":[["경향신문","https://www.khan.co.kr/rss/rssdata/kh_world.xml"],["뉴시스","https://www.newsis.com/RSS/international.xml"],["연합뉴스","https://www.yna.co.kr/rss/news.xml"]],
+    "IT 과학":[["경향신문","https://www.khan.co.kr/rss/rssdata/science_news.xml"],["IT동아","https://it.donga.com/feeds/rss/"],["전자신문","https://rss.etnews.com/Section901.xml"],["지디넷코리아","https://feeds.feedburner.com/zdkorea"]]
+  };
+  const chosen=feeds[category]||feeds[""];
+  const results=await Promise.allSettled(chosen.map(async ([source,url])=>{
+    const response=await fetch("https://proxy.cors.dev/"+url,{credentials:"omit",cache:"no-store"});
+    if(!response.ok) throw Error(source+" HTTP "+response.status+(response.headers.get("X-Cors-Error")?" / "+response.headers.get("X-Cors-Error"):""));
+    const xml=new DOMParser().parseFromString(await response.text(),"application/xml");
+    if(xml.querySelector("parsererror")) throw Error(source+" XML 형식 오류");
+    let nodes=[...xml.getElementsByTagName("item")];
+    const atom=nodes.length===0;
+    if(atom) nodes=[...xml.getElementsByTagName("entry")];
+    return nodes.map(node=>{
+      const pick=(names)=>{for(const name of names){const el=[...node.getElementsByTagName("*")].find(n=>n.localName===name);if(el)return el.textContent||"";}return "";};
+      const linkEl=[...node.getElementsByTagName("*")].find(n=>n.localName==="link");
+      const link=atom?(linkEl?.getAttribute("href")||linkEl?.textContent||""):(linkEl?.textContent||"");
+      return {title:pick(["title"]).trim(),link:link.trim(),pubDate:pick(["pubDate","published","updated"]),author:source,description:pick(["description","summary","content","encoded"])};
+    }).filter(x=>x.title&&x.link);
+  }));
+  const failed=results.filter(r=>r.status==="rejected").map(r=>r.reason?.message||"피드 오류");
+  let seen=new Set();
+  items=results.filter(r=>r.status==="fulfilled").flatMap(r=>r.value).filter(x=>{
+    const k=x.title.replace(/\s+/g,"").toLowerCase();
+    if(!k||seen.has(k))return false;
+    seen.add(k);return true;
+  }).sort((a,b)=>new Date(b.pubDate||0)-new Date(a.pubDate||0));
+  if(!items.length){
+    $("#feed").innerHTML='<div class="empty">뉴스를 가져오지 못했어요.<br><small>'+esc(failed.join(" · ")||"RSS에 기사가 없습니다")+'</small><br>잠시 후 새로고침해 주세요.</div>';
+    $("#count").textContent="연결된 뉴스 피드 0개";
+    return;
+  }
+  render();
+  if(failed.length) $("#count").textContent=items.length+"개의 기사 · 일부 매체 연결 실패";
+}
 function render(){let q=$("#search").value.trim().toLowerCase();let list=(showSaved?saved.map(s=>s):items).filter(x=>!q||((x.title||"")+" "+(x.description||"")+" "+(x.author||"")).toLowerCase().includes(q));$("#count").textContent=list.length+"개의 기사";$("#feed").innerHTML=list.length?list.map((x,i)=>{let link=x.link||"#";let date=x.pubDate?new Date(x.pubDate).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):"";let desc=(x.description||"").replace(/<[^>]*>/g," ").replace(/&nbsp;/g," ").trim();let is=saved.some(s=>s.link===x.link);return '<article class="story"><div class="storytop"><span class="source">'+esc(x.author||"뉴스")+'</span><span>'+date+'</span></div><h2>'+esc(x.title||"제목 없음")+'</h2><p class="desc">'+esc(desc||"기사 원문에서 자세한 내용을 확인할 수 있습니다.")+'</p><div class="storybottom"><a href="'+attr(link)+'" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">기사 원문 읽기 ↗</a><button class="save '+(is?'on':'')+'" data-save="'+i+'" aria-label="저장">'+(is?"★":"☆")+'</button></div></article>'}).join(""):'<div class="empty">표시할 기사가 없어요.</div>';}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}function attr(s){return esc(s)}
 $("#tabs").addEventListener("click",e=>{let b=e.target.closest("button");if(!b)return;if(b.dataset.saved){showSaved=!showSaved;drawTabs();render();return}category=b.dataset.q;showSaved=false;drawTabs();load()});
