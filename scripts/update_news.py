@@ -238,7 +238,7 @@ class NaverSearchParser(HTMLParser):
     def handle_endtag(self, tag):
         if tag == "a" and self.current is not None:
             row = {"link": self.current["link"].split("?")[0], "title": clean_text(self.current["title"])}
-            if row["title"] and re.search(r"news\\.naver\\.com/.+/(article|read)", row["link"]):
+            if row["title"] and re.search(r"news\.naver\.com/.+/(article|read)", row["link"]):
                 self.rows.append(row)
             self.current = None
 
