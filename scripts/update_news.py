@@ -204,7 +204,7 @@ def fetch_naver_popular(target_date):
     parser.feed(payload.decode("utf-8", errors="replace"))
     rows, seen = [], set()
     for row in parser.rows:
-        key = re.sub(r"\\W+", "", row["title"].lower())
+        key = re.sub(r"\W+", "", row["title"].lower())
         if key in seen:
             continue
         seen.add(key)
