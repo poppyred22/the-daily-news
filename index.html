@@ -84,8 +84,8 @@ async function load(){
       for(const x of rows){
         const d=new Date(x.pubDate);
         if(isNaN(d.getTime())||new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(d)!==todayKey)continue;
-        const titleKey=x.title.toLowerCase().replace(/\\s+/g,"").replace(/[“”‘’"'.,!?·:()[\\]{}]/g,"");
-        const linkKey=x.link.split("?")[0].replace(/\\/$/,"");
+        const titleKey=x.title.toLowerCase().replace(/\s+/g,"").replace(/[“”‘’"'.,!?·:()[\]{}]/g,"");
+        const linkKey=x.link.split("?")[0].replace(/\/$/,"");
         if(seenTitles.has(titleKey)||seenLinks.has(linkKey))continue;
         seenTitles.add(titleKey);seenLinks.add(linkKey);
         categoryItems[task.cat].push(x);total++;
