@@ -29,17 +29,17 @@ FEEDS = {
         ("매일신문", "https://www.imaeil.com/rss?cate=society"),
         ("매일경제", "https://www.mk.co.kr/rss/50400012/"),
     ],
-    "생활 문화": [
-        ("경향신문", "https://www.khan.co.kr/rss/rssdata/culture_news.xml"),
+    "생활": [
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/society_news.xml"),
-        ("뉴시스", "https://www.newsis.com/RSS/culture.xml"),
         ("뉴시스", "https://www.newsis.com/RSS/society.xml"),
         ("매일신문", "https://www.imaeil.com/rss?cate=life"),
-        ("매일신문", "https://www.imaeil.com/rss?cate=culture"),
-        ("매일신문", "https://www.imaeil.com/rss?cate=society"),
         ("매일경제", "https://www.mk.co.kr/rss/60000007/"),
+    ],
+    "문화": [
+        ("경향신문", "https://www.khan.co.kr/rss/rssdata/culture_news.xml"),
+        ("뉴시스", "https://www.newsis.com/RSS/culture.xml"),
+        ("매일신문", "https://www.imaeil.com/rss?cate=culture"),
         ("매일경제", "https://www.mk.co.kr/rss/50400012/"),
-
     ],
     "세계": [
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/kh_world.xml"),
@@ -137,7 +137,7 @@ def fetch_feed(source, url, target_date):
 def article_score(category, row):
     text = (row["title"] + " " + row["description"]).lower()
     score = 0
-    if category == "생활 문화":
+    if category == "생활":
         groups = [
             (r"물가|장바구니|식료품|외식비|전기요금|가스요금|통신비|교통비|철도|KTX|버스|지하철|기온|한파|추위|날씨|월세|전세|집값|주거|대출|금리|연금|임금|월급|노동|직장|돌봄|육아|교육비|학부모|학교|병원비|건강보험|건강|운동|걷기|소비자|환불|수수료|배달|택배|쿠팡|편의점|마트|주차|생활폐기물|분리수거|반려동물|노인|청년|가족|장애인|복지|개인정보|온라인플랫폼|보험|식품|음식|김치|한복|쇼핑|여행|관광|유통|소비|요금", 5),
             (r"논란|반발|불만|피해|불공정|차별|감동|선행|기부|나눔|구조|재회|화제|뜻밖|이색|처음|최초|새로|바뀐다|도입|시행|인권|안전|사기", 3),
@@ -147,6 +147,11 @@ def article_score(category, row):
             if re.search(pattern, text):
                 score += points
         if re.search(r"물가|주거|노동|돌봄|소비자|요금|교통|복지|피해|논란|불공정", text):
+            score += 2
+    elif category == "문화":
+        if re.search(r"전시|공연|콘서트|영화|드라마|배우|가수|앨범|음악|미술|박물관|미술관|축제|출판|책|작가|문학|문화재|유네스코|한지|공예|연극|뮤지컬|예술|문화", text):
+            score += 5
+        if re.search(r"최초|첫 공개|개막|초연|복원|발견|재조명|화제|이색", text):
             score += 2
     elif category == "사건 사고":
         if re.search(r"사고|화재|붕괴|추락|충돌|추돌|침수|폭발|실종|구조|재난|참사|사망|부상|피해|범죄|폭행|절도|사기|수사|구속|기소|재판|영장|경찰|소방|응급|학대|유괴|살해", text):
@@ -590,7 +595,6 @@ def main():
             # Today's live section pages provide the freshest headlines.
             section_map = {
                 "사회": 102,
-                "생활 문화": 103,
                 "세계": 104,
                 "IT 과학": 105,
             }
@@ -603,6 +607,37 @@ def main():
                     diagnostics[f"{target_date}:네이버섹션:{category}"] = {"ok": True, "items": len(rows)}
                 except Exception as exc:
                     diagnostics[f"{target_date}:네이버섹션:{category}"] = {"ok": False, "error": str(exc)[:180]}
+
+            # Naver section 103 combines lifestyle and culture; split by editorial topic.
+            culture_pattern = re.compile(r"전시|공연|콘서트|영화|드라마|배우|가수|앨범|음악|미술|박물관|미술관|축제|출판|책|작가|문학|문화재|유네스코|한지|공예|연극|뮤지컬|예술|문화")
+            try:
+                combined_rows = fetch_naver_section(103, target_date)
+                for row in combined_rows:
+                    category = "문화" if culture_pattern.search(row.get("title", "")) else "생활"
+                    row["category"] = category
+                    candidates[category].append(row)
+                diagnostics[f"{target_date}:네이버섹션:생활문화"] = {"ok": True, "items": len(combined_rows)}
+            except Exception as exc:
+                diagnostics[f"{target_date}:네이버섹션:생활문화"] = {"ok": False, "error": str(exc)[:180]}
+
+            # Supplement either side of the combined section with Naver RSS results.
+            today_queries = {
+                "생활": ["생활 건강 날씨 소비자 물가 교통", "주거 임금 복지 음식 여행 생활"],
+                "문화": ["문화 예술 전시 공연 영화 음악", "책 출판 박물관 축제 문화재 한지"],
+            }
+            supplement_jobs = []
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                for category, queries in today_queries.items():
+                    if len(candidates[category]) < 10:
+                        for query in queries:
+                            supplement_jobs.append((category, query, pool.submit(fetch_naver_search_rss, query, category, target_date)))
+                for category, query, future in supplement_jobs:
+                    try:
+                        rows = future.result()
+                        candidates[category].extend(rows)
+                        diagnostics[f"{target_date}:네이버RSS:{category}:{query}"] = {"ok": True, "items": len(rows)}
+                    except Exception as exc:
+                        diagnostics[f"{target_date}:네이버RSS:{category}:{query}"] = {"ok": False, "error": str(exc)[:180]}
 
             # Split accident/crime stories out of the Society section without duplication.
             society_rows = candidates["사회"]
@@ -620,8 +655,9 @@ def main():
             yesterday_queries = {
                 "사건 사고": ["사고 화재 구조 수사 사건", "범죄 경찰 사건 사고"],
                 "사회": ["사회 정책 교육 노동 복지", "국회 정부 주민 노동"],
-                "생활 문화": ["생활 문화 건강 날씨 소비자", "음식 여행 문화 건강"],
-                "세계": ["국제 세계 외교 전쟁 경제", "미국 중국 일본 유럽"],
+                "생활": ["생활 건강 날씨 소비자 물가 교통", "주거 임금 복지 음식 여행 생활"],
+                "문화": ["문화 예술 전시 공연 영화 음악", "책 출판 박물관 축제 문화재 한지"],
+                "세계": ["국제 세계 외교 경제 기후", "미국 중국 일본 유럽 국제"],
                 "IT 과학": ["IT 과학 AI 인공지능 반도체", "기술 로봇 우주 과학"],
             }
             jobs = []
@@ -705,8 +741,12 @@ def main():
     # Preserve the already published archive for the immediately previous day.
     # A short or temporarily unavailable RSS response must not erase that archive.
     saved_yesterday = (previous_data.get("days") or {}).get("yesterday")
+    # Do not keep the old combined "생활 문화" schema after the editorial split.
+    saved_categories = (saved_yesterday or {}).get("categories", {})
+    new_yesterday = all_days.get("yesterday", {})
     if (saved_yesterday and saved_yesterday.get("date") == yesterday.isoformat()
-            and saved_yesterday.get("total", 0) > all_days.get("yesterday", {}).get("total", 0)):
+            and "생활 문화" not in saved_categories
+            and saved_yesterday.get("total", 0) > new_yesterday.get("total", 0)):
         all_days["yesterday"] = saved_yesterday
 
     total = sum(day["total"] for day in all_days.values())
