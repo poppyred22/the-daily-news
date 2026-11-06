@@ -85,6 +85,7 @@ function pickScore(x,category){
   ];
   let score=0;
   for(const [words,points] of signals) if(new RegExp(words,"i").test(t)) score+=points;
+  if(x.priority) score+=8;
   if(category==="생활 문화"){
     if(/물가|장바구니|월세|전세|집값|교통비|전기요금|가스요금|통신비|병원비|소비자|환불|수수료|노동|임금|돌봄|육아|교육비|연금|복지|쿠팡|배달|택배|개인정보|반려동물|가족|청년|노인/.test(t)) score+=6;
     if(/논란|불만|피해|차별|사기|안전|감동|선행|기부|나눔|새로|바뀐다|도입|시행/.test(t)) score+=3;
