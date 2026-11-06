@@ -4,6 +4,7 @@ import json
 import re
 import difflib
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import html
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -219,12 +220,26 @@ def fetch_naver_description(url):
         return ""
 
 def enrich_descriptions(rows):
-    for row in rows:
-        if len((row.get("description") or "").strip()) < 70:
-            summary = fetch_naver_description(row.get("naverLink") or row.get("link", ""))
-            if len(summary) > len((row.get("description") or "").strip()):
-                row["description"] = summary
-            time.sleep(0.04)
+    # Fetch missing summaries concurrently so the daily update does not stall.
+    pending = {
+        pool.submit(fetch_naver_description, row.get("naverLink") or row.get("link", "")): row
+        for row in rows
+        if len((row.get("description") or "").strip()) < 70
+    }
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        pending = {
+            pool.submit(fetch_naver_description, row.get("naverLink") or row.get("link", "")): row
+            for row in rows
+            if len((row.get("description") or "").strip()) < 70
+        }
+        for future in as_completed(pending):
+            row = pending[future]
+            try:
+                summary = future.result()
+            except Exception:
+                summary = ""
+            if len(summary.strip()) > len((row.get("description") or "").strip()):
+                row["description"] = summary.strip()
     return rows
 
 class NaverRankingParser(HTMLParser):
@@ -544,6 +559,7 @@ def main():
         # Every story here already has a verified direct Naver News URL.
         for name in categories:
             categories[name] = choose_diverse(categories[name], 10)
+            categories[name] = enrich_descriptions(categories[name])
 
         total = sum(len(rows) for rows in categories.values())
         all_days[day_key] = {
