@@ -31,7 +31,7 @@ function seoulDateKey(value){
 }
 function drawTabs(){ $("#tabs").innerHTML=categories.map(([label,q])=>'<button class="'+(category===q?'active':'')+'" data-q="'+q+'">'+label+'</button>').join('')+'<button data-saved="1" class="'+(showSaved?'active':'')+'">★ 저장한 기사</button>'; }
 function drawDateTabs(){
-  const allDays=window.dailyDays||[];\n  const days=dayFilter==="all"?allDays:allDays.filter(d=>d.date===(dayFilter==="today"?allDays[0]?.date:allDays[1]?.date));
+  const days=window.dailyDays||[];
   const today=days[0],yesterday=days[1];
   const options=[{key:"today",label:today?.label||"오늘"},{key:"yesterday",label:yesterday?.label||"어제"},{key:"all",label:"전체 날짜"}];
   $("#date-tabs").innerHTML=options.map(o=>'<button type="button" data-day="'+o.key+'" class="'+(dayFilter===o.key?'active':'')+'">'+esc(o.label)+'</button>').join('');
