@@ -51,6 +51,7 @@ async function load(){
     return;
   }
   window.dailyDays=[data.days.today,data.days.yesterday].filter(Boolean);
+  drawDateTabs();
   items=window.dailyDays.flatMap(day=>Object.values(day.categories||{}).flat());
   render();
   const total=items.length;
@@ -113,7 +114,8 @@ function render(){
     $("#feed").innerHTML=list.length?'<div class="restlist">'+list.map((x,i)=>story(x,i,false)).join("")+'</div>':'<div class="empty">저장한 기사가 없어요.</div>';
     return;
   }
-  const days=window.dailyDays||[];
+  const allDays=window.dailyDays||[];
+  const days=dayFilter==="all"?allDays:allDays.filter(d=>d.date===(dayFilter==="today"?allDays[0]?.date:allDays[1]?.date));
   const categoryOrder=categories.filter(c=>c[1]).map(c=>c[1]);
   const rendered=[];
   let html="";
