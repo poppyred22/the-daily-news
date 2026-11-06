@@ -71,7 +71,7 @@ def parse_date(raw):
 def clean_text(value):
     value = html.unescape(value or "")
     value = re.sub(r"<[^>]+>", " ", value)
-    return re.sub(r"\\s+", " ", value).strip()
+    return re.sub(r"\s+", " ", value).strip()
 
 def fetch_feed(source, url):
     req = urllib.request.Request(url, headers={
@@ -126,7 +126,7 @@ def main():
                 for row in rows:
                     if category == "사건 사고" and not event_pattern.search(row["title"] + " " + row["description"]):
                         continue
-                    key = re.sub(r"\\W+", "", row["title"].lower())
+                    key = re.sub(r"\W+", "", row["title"].lower())
                     link = row["link"].split("?", 1)[0].rstrip("/")
                     if key in seen or link in seen:
                         continue
