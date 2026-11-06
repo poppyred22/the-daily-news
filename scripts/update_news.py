@@ -188,7 +188,7 @@ def main():
                 diagnostics[source + ":" + category] = {"ok": True, "today_items": len(rows)}
                 for row in rows:
                     combined = row["title"] + " " + row["description"]
-                    if category == "사건 사고" and (not event_pattern.search(combined) or re.search(r"증시|주가|코스피|코스닥|장관 후보자|검찰개혁|특검법", combined)):
+                    if category == "사건 사고" and (not event_pattern.search(combined) or re.search(r"증시|주가|코스피|코스닥|장관 후보자|검찰개혁|특검법|조작기소|시상식|수상|성폭행|성범죄|강간|성추행", combined)):
                         continue
                     if category == "생활 문화" and (article_score(category, row) < 2 or re.search(r"주식|증시|코스피|코스닥|증권|투자자|특검|검찰|대통령|국회|장관|정당|후보자|살해|폭행|화재|사망|사건", combined)):
                         continue
@@ -212,6 +212,7 @@ def main():
                     "author": "한겨레",
                     "description": "미국 뉴욕타임스가 뉴진스가 미성년자 시절 체결한 전속계약서에 교육권과 수면권 등 보호 조항이 빠져 있었다고 보도함. 계약서에는 소속사를 비판하는 발언을 제한하고 계약 종료 뒤에도 음악과 인공지능으로 만든 목소리를 활용할 수 있다는 내용이 담긴 것으로 전해져 논란이 커짐. 하이브는 연습생과 국가 표준 청소년 부속합의서를 체결했다고 설명함.",
                     "category": "생활 문화",
+                    "priority": 1,
                 }],
                 "IT 과학": [{
                     "title": "늙지 않는 기계, 늙어가는 인간…접점은 어디에 있을까",
