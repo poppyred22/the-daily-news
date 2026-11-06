@@ -149,7 +149,7 @@ def article_score(category, row):
         if re.search(r"물가|주거|노동|돌봄|소비자|요금|교통|복지|피해|논란|불공정", text):
             score += 2
     elif category == "문화":
-        if re.search(r"전시|공연|콘서트|영화|드라마|배우|가수|앨범|음악|미술|박물관|미술관|축제|출판|책|작가|문학|문화재|유네스코|한지|공예|연극|뮤지컬|예술|문화", text):
+        if re.search(r"전시|공연|콘서트|영화|드라마|배우|가수|앨범|음악|미술|박물관|미술관|축제|출판|책|작가|문학|문화재|유네스코|한지|공예|연극|뮤지컬|예술|문화|패션|한복|전통의상|전통문화|디자인|대중문화|웹툰|만화|애니메이션|게임|OTT|넷플릭스|방송|예능|아이돌|팬덤|아티스트|음반|음원|연주|오페라|국악|무용|발레|서예|사진|영화제|문화행사|박람회|작품", text):
             score += 5
         if re.search(r"최초|첫 공개|개막|초연|복원|발견|재조명|화제|이색", text):
             score += 2
@@ -584,7 +584,7 @@ def main():
     all_days = {}
     diagnostics = {}
 
-    event_pattern = re.compile(r"사고|화재|붕괴|추락|충돌|추돌|침수|폭발|실종|구조|재난|참사|사망|부상|교통사고|범죄|폭행|절도|사기|스토킹|살해|소방|응급|인명피해|학대|유괴|검거")
+    event_pattern = re.compile(r"사고|화재|붕괴|추락|충돌|추돌|침수|폭발|실종|구조|재난|참사|사망|부상|교통사고|범죄|폭행|절도|사기|스토킹|살해|소방|응급|인명피해|학대|유괴|검거|구급차|골든타임|의료사고|응급실|의료공백|미배치")
 
     for day_key, day_value in targets:
         target_date = day_value.isoformat()
@@ -616,7 +616,7 @@ def main():
                     diagnostics[f"{target_date}:네이버섹션:{category}"] = {"ok": False, "error": str(exc)[:180]}
 
             # Naver section 103 combines lifestyle and culture; split by editorial topic.
-            culture_pattern = re.compile(r"전시|공연|콘서트|영화|드라마|배우|가수|앨범|음악|미술|박물관|미술관|축제|출판|책|작가|문학|문화재|유네스코|한지|공예|연극|뮤지컬|예술|문화|K-?pop|아이돌|웹툰|만화|방송|예능|무대|전통|콘텐츠|OTT|넷플릭스|애니메이션|팬덤|음원|음반|시사회|촬영|아티스트|패션")
+            culture_pattern = re.compile(r"전시|공연|콘서트|영화|드라마|배우|가수|앨범|음악|미술|박물관|미술관|축제|출판|책|작가|문학|문화재|유네스코|한지|공예|연극|뮤지컬|예술|문화|K-?pop|아이돌|웹툰|만화|방송|예능|무대|전통|콘텐츠|OTT|넷플릭스|애니메이션|팬덤|음원|음반|시사회|촬영|아티스트|패션|한복|전통의상|전통문화|디자인|대중문화|게임|국악|무용|발레|서예|사진|영화제|문화행사|박람회|작품")
             try:
                 combined_rows = fetch_naver_section(103, target_date)
                 for row in combined_rows:
@@ -751,7 +751,7 @@ def main():
                 row for row in candidates[name]
                 if clean_text(row.get("title", "")) != "동영상뉴스"
                 and not re.fullmatch(r"동영상뉴스 재생시간\s*\d{1,2}:\d{2}", clean_text(row.get("title", "")))
-                and not re.search(r"흉기|칼 들고|전차|탱크|무기|총기|미사일|폭탄", clean_text(row.get("title", "")))
+                and not re.search(r"흉기|칼 들고|전차|탱크|무기|총기|미사일|폭탄|기뢰|핵잠|청해부대|공습|군함|잠수함|전투기|군사|전쟁|음란물|성착취|성폭력|성범죄|포르노|성인물", clean_text(row.get("title", "")))
             ]
         categories = deduplicate_across_categories(candidates)
         # Every story here already has a verified direct Naver News URL.
