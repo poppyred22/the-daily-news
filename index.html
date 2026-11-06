@@ -73,7 +73,7 @@ function makeEasySummary(raw){
 }
 function naverNewsUrl(x){
   const link=String(x.link||"");
-  if(/(^|\\.)news\\.naver\\.com\\//i.test(link)) return link;
+  if(/(^|\.)news\.naver\.com\//i.test(link)) return link;
   return "https://search.naver.com/search.naver?where=news&query="+encodeURIComponent(x.title||"");
 }
 function story(x,i,featured){
