@@ -75,16 +75,26 @@ function makeEasySummary(raw){
 function naverNewsUrl(x){
   return String(x.naverLink||x.link||"");
 }
+function isHeadlineEcho(title,raw){
+  const normalize=s=>String(s||"").toLowerCase().replace(/[^가-힣a-z0-9]/g,"");
+  const t=normalize(title),d=normalize(raw);
+  if(!t||!d) return false;
+  if(d.startsWith(t)) return true;
+  return t.length>=18&&d.includes(t);
+}
 function story(x,i,featured){
   const when=x.pubDate?new Date(x.pubDate):null;
   const dateText=when&&!Number.isNaN(when.getTime())?new Intl.DateTimeFormat("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(when):"";
   const title=esc(x.title||"제목 없음");
-  const description=esc(makeEasySummary(x.description||"이 기사에 제공된 상세 요약이 없습니다. 원문 기사에서 전체 내용을 확인해 주세요."));
+  const rawDescription=String(x.description||"").trim();
+  const repeated=isHeadlineEcho(x.title,rawDescription)||/기사에서 관련 배경과 주요 내용을 확인할 수 있습니다/.test(rawDescription);
+  const description=repeated?"":esc(makeEasySummary(rawDescription));
   const author=esc(x.author||"뉴스");
   const categoryLabel=esc(x.category||"");
   const href=attr(naverNewsUrl(x));
   const isOpen=window.openStoryLink===x.link;
-  return '<article class="story"><div class="storytop"><span class="source">'+author+'</span><span>'+dateText+'</span></div><button class="story-title" type="button" data-open="'+i+'" aria-expanded="'+(isOpen?'true':'false')+'">'+title+'</button>'+(isOpen?'<div class="story-detail"><p class="detail-summary">'+description+'</p><a class="original-link" href="'+href+'" target="_blank" rel="noopener noreferrer">원문 보기 ↗</a></div>':'')+'<div class="storybottom"><span>'+categoryLabel+'</span><button class="save" type="button" data-save="'+i+'" aria-label="기사 저장">☆</button></div></article>';
+  const summaryMarkup=description?'<p class="detail-summary">'+description+'</p>':'<p class="detail-summary">제목을 반복하지 않도록 요약을 생략했어요. 원문에서 핵심 내용을 확인해 주세요.</p>';
+  return '<article class="story"><div class="storytop"><span class="source">'+author+'</span><span>'+dateText+'</span></div><button class="story-title" type="button" data-open="'+i+'" aria-expanded="'+(isOpen?'true':'false')+'">'+title+'</button>'+(isOpen?'<div class="story-detail">'+summaryMarkup+'<a class="original-link" href="'+href+'" target="_blank" rel="noopener noreferrer">원문 보기 ↗</a></div>':'')+'<div class="storybottom"><span>'+categoryLabel+'</span><button class="save" type="button" data-save="'+i+'" aria-label="기사 저장">☆</button></div></article>';
 }
 function favoritePreferenceScore(x,category){
   if(!Array.isArray(saved)||!saved.length) return 0;
