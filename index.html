@@ -74,17 +74,24 @@ function story(x,i,featured){
   const expanded=window.openStoryLink===x.link;
   return '<article class="story"><div class="storytop"><span class="source">'+author+'</span><span>'+dateText+'</span></div><button class="story-title" type="button" data-open="'+i+'" aria-expanded="'+(expanded?'true':'false')+'">'+title+'</button>'+(expanded?'<div class="story-detail"><p class="detail-summary">'+description+'</p><a class="original-link" href="'+href+'" target="_blank" rel="noopener noreferrer">원문 기사 보기 ↗</a></div>':'')+'<div class="storybottom"><span>'+categoryLabel+'</span><button class="save" type="button" data-save="'+i+'" aria-label="기사 저장">☆</button></div></article>';
 }
-function pickScore(x){
+function pickScore(x,category){
   const t=((x.title||"")+" "+(x.description||"")).toLowerCase();
   const signals=[
     ["세계 최초|최초 공개|처음으로|이례적|전례 없는|기록 경신|신기록",5],
     ["기적|감동|재회|구조|구하다|살렸다|선행|나눔|헌신|가족",4],
     ["뜻밖|반전|놀라운|신기한|희귀|이색|화제|눈길|특별한|정체",3],
     ["발견|발명|새로운 종|미스터리|수수께끼|우주|심해|고대",3],
-    ["논란|충격|분노|참사|사고|범죄|피해|속보",1]
+    ["논란|충격|분노|참사|사고|범죄|피해|속보|불공정|반발",2]
   ];
   let score=0;
   for(const [words,points] of signals) if(new RegExp(words,"i").test(t)) score+=points;
+  if(category==="생활 문화"){
+    if(/물가|장바구니|월세|전세|집값|교통비|전기요금|가스요금|통신비|병원비|소비자|환불|수수료|노동|임금|돌봄|육아|교육비|연금|복지|쿠팡|배달|택배|개인정보|반려동물|가족|청년|노인/.test(t)) score+=6;
+    if(/논란|불만|피해|차별|사기|안전|감동|선행|기부|나눔|새로|바뀐다|도입|시행/.test(t)) score+=3;
+    if(/전시|공연|콘서트|신간|앨범|미술전|연주회/.test(t)) score-=2;
+  }
+  if(category==="사회"&&/민생|노동|주거|교육|복지|청년|노인|장애|돌봄|의료|지역|주민|시민|불평등|안전|논란|반발|피해/.test(t)) score+=3;
+  if(category==="사건 사고"&&/사고|화재|붕괴|추락|충돌|실종|구조|재난|참사|사망|부상|범죄|폭행|사기|수사|피해/.test(t)) score+=3;
   if((x.description||"").length>90) score+=1;
   return score;
 }
@@ -101,14 +108,14 @@ function render(){
   let picks=[],rest=[];
   if(category===""){
     for(const [cat,rows] of Object.entries(categoryData)){
-      const ranked=rows.filter(matches).map((x,i)=>({x,score:pickScore(x)})).sort((a,b)=>b.score-a.score||new Date(b.x.pubDate)-new Date(a.x.pubDate));
+      const ranked=rows.filter(matches).map((x,i)=>({x,score:pickScore(x,cat)})).sort((a,b)=>b.score-a.score||new Date(b.x.pubDate)-new Date(a.x.pubDate));
       picks.push(...ranked.slice(0,3).map(p=>({...p,category:cat})));
       rest.push(...ranked.slice(3).map(p=>({...p,category:cat})));
     }
     picks.sort((a,b)=>new Date(b.x.pubDate)-new Date(a.x.pubDate));
     rest.sort((a,b)=>new Date(b.x.pubDate)-new Date(a.x.pubDate));
   }else{
-    const ranked=(categoryData[category]||[]).filter(matches).map(x=>({x,score:pickScore(x),category})).sort((a,b)=>b.score-a.score||new Date(b.x.pubDate)-new Date(a.x.pubDate));
+    const ranked=(categoryData[category]||[]).filter(matches).map(x=>({x,score:pickScore(x,category),category})).sort((a,b)=>b.score-a.score||new Date(b.x.pubDate)-new Date(a.x.pubDate));
     picks=ranked.slice(0,3).sort((a,b)=>new Date(b.x.pubDate)-new Date(a.x.pubDate));
     rest=ranked.slice(3).sort((a,b)=>new Date(b.x.pubDate)-new Date(a.x.pubDate));
   }
