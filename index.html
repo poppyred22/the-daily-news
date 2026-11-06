@@ -111,13 +111,14 @@ function render(){
   $("#count").textContent=total+"개 · 오늘 기사";
   if(!total){$("#feed").innerHTML='<div class="empty">오늘 표시할 기사가 없어요.</div>';return;}
   const renderStory=(p,i,featured)=>story(p.x,i,featured);
+  window.renderedStories=[...picks,...rest].map(p=>p.x);
   const pickHeading=category===""?"오늘의 픽 · 전체 카테고리":"오늘의 픽";
   const picksHtml=picks.length?'<div class="sectionhead"><strong>'+pickHeading+'</strong><span>'+picks.length+'개 · 카테고리별 3개</span></div><div class="featured">'+picks.map((p,i)=>'<div class="pick-category">'+(category===""?'<div style="font-size:10px;color:#888;font-weight:700;padding-top:13px">'+esc(categories.find(c=>c[1]===p.category)?.[0]||p.category)+'</div>':'')+renderStory(p,i,true)+'</div>').join("")+'</div>':'';
-  const restHtml=rest.length?'<hr class="sectionrule"><div class="sectionhead"><strong>나머지 기사</strong><span>최신순 '+rest.length+'개</span></div><div class="restlist">'+rest.map((p,i)=>renderStory(p,i,false)).join("")+'</div>':'';
+  const restHtml=rest.length?'<hr class="sectionrule"><div class="sectionhead"><strong>나머지 기사</strong><span>최신순 '+rest.length+'개</span></div><div class="restlist">'+rest.map((p,i)=>renderStory(p,picks.length+i,false)).join("")+'</div>':'';
   $("#feed").innerHTML=pickHeading? picksHtml+restHtml:restHtml;
 }
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}function attr(s){return esc(s)}
 $("#tabs").addEventListener("click",e=>{let b=e.target.closest("button");if(!b)return;if(b.dataset.saved){showSaved=!showSaved;drawTabs();render();return}category=b.dataset.q;showSaved=false;drawTabs();load()});
-$("#feed").addEventListener("click",e=>{let b=e.target.closest("[data-save]");if(!b)return;let list=(showSaved?saved:items).filter(x=>{let q=$("#search").value.trim().toLowerCase();return !q||((x.title||"")+" "+(x.description||"")).toLowerCase().includes(q)});let x=list[Number(b.dataset.save)];if(!x)return;let exists=saved.some(s=>s.link===x.link);saved=exists?saved.filter(s=>s.link!==x.link):[x,...saved];localStorage.setItem("tdn_saved",JSON.stringify(saved));render()});
+$("#feed").addEventListener("click",e=>{let b=e.target.closest("[data-save]");if(!b)return;let list=showSaved?saved:(window.renderedStories||items);let x=list[Number(b.dataset.save)];if(!x)return;let exists=saved.some(s=>s.link===x.link);saved=exists?saved.filter(s=>s.link!==x.link):[x,...saved];localStorage.setItem("tdn_saved",JSON.stringify(saved));render()});
 $("#search").addEventListener("input",render);$("#refresh").addEventListener("click",load);drawTabs();load();
 </script></body></html>
