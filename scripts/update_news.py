@@ -119,7 +119,7 @@ def fetch_feed(source, url):
         dt = parse_date(raw_date)
         if not title or not link or not dt or dt.date().isoformat() != TODAY:
             continue
-        embedded_date = re.search(r"(20\\d{2})(0[1-9]|1[0-2])([0-3]\\d)", link)
+        embedded_date = re.search(r"(20\d{2})(0[1-9]|1[0-2])([0-3]\d)", link)
         if embedded_date and "".join(embedded_date.groups()) != TODAY.replace("-", ""):
             continue
         description = clean_text(child_text(node, {"description", "summary", "encoded", "content"}))
