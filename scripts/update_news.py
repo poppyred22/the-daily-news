@@ -15,10 +15,10 @@ TODAY = datetime.now(KST).date().isoformat()
 FEEDS = {
     "사건 사고": [
         ("뉴시스", "https://www.newsis.com/RSS/society.xml"),
-        ("연합뉴스", "https://www.yna.co.kr/rss/news.xml"),
+        ("연합뉴스", "https://www.yna.co.kr/rss/society.xml"),
         ("SBS", "https://news.sbs.co.kr/news/newsflashRssFeed.do"),
         ("매일신문", "https://www.imaeil.com/rss?cate=society"),
-        ("한겨레", "https://www.hani.co.kr/rss/"),
+        ("한겨레", "http://www.hani.co.kr/rss/"),
     ],
     "사회": [
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/society_news.xml"),
@@ -28,11 +28,15 @@ FEEDS = {
     ],
     "생활 문화": [
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/culture_news.xml"),
+        ("경향신문", "https://www.khan.co.kr/rss/rssdata/society_news.xml"),
         ("뉴시스", "https://www.newsis.com/RSS/culture.xml"),
+        ("뉴시스", "https://www.newsis.com/RSS/society.xml"),
         ("매일신문", "https://www.imaeil.com/rss?cate=life"),
         ("매일신문", "https://www.imaeil.com/rss?cate=culture"),
+        ("매일신문", "https://www.imaeil.com/rss?cate=society"),
         ("매일경제", "https://www.mk.co.kr/rss/60000007/"),
-        ("한겨레", "https://www.hani.co.kr/rss/"),
+        ("매일경제", "https://www.mk.co.kr/rss/50400012/"),
+        ("한겨레", "http://www.hani.co.kr/rss/"),
     ],
     "세계": [
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/kh_world.xml"),
@@ -43,7 +47,7 @@ FEEDS = {
     "IT 과학": [
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/science_news.xml"),
         ("전자신문", "https://rss.etnews.com/Section901.xml"),
-        ("ZDNet Korea", "https://zdnet.co.kr/rss/news.xml"),
+        ("ZDNet Korea", "http://feeds.feedburner.com/zdkorea"),
         ("뉴시스", "https://www.newsis.com/RSS/health.xml"),
     ],
 }
@@ -115,6 +119,9 @@ def fetch_feed(source, url):
         dt = parse_date(raw_date)
         if not title or not link or not dt or dt.date().isoformat() != TODAY:
             continue
+        embedded_date = re.search(r"(20\\d{2})(0[1-9]|1[0-2])([0-3]\\d)", link)
+        if embedded_date and "".join(embedded_date.groups()) != TODAY.replace("-", ""):
+            continue
         description = clean_text(child_text(node, {"description", "summary", "encoded", "content"}))
         rows.append({
             "title": title,
@@ -130,9 +137,9 @@ def article_score(category, row):
     score = 0
     if category == "생활 문화":
         groups = [
-            (r"물가|장바구니|식료품|외식비|전기요금|가스요금|통신비|교통비|월세|전세|집값|주거|대출|금리|연금|임금|월급|노동|직장|돌봄|육아|교육비|학부모|병원비|건강보험|소비자|환불|수수료|배달|택배|쿠팡|편의점|마트|대중교통|버스|지하철|주차|생활폐기물|분리수거|반려동물|노인|청년|가족|장애인|복지|개인정보|온라인플랫폼|보험", 5),
-            (r"논란|반발|불만|피해|불공정|차별|감동|선행|기부|나눔|구조|재회|화제|뜻밖|이색|처음|최초|새로|바뀐다|도입|시행", 3),
-            (r"전시|공연|콘서트|신간|앨범|영화|드라마|축제|미술|음악", -1),
+            (r"물가|장바구니|식료품|외식비|전기요금|가스요금|통신비|교통비|철도|KTX|버스|지하철|기온|한파|추위|날씨|월세|전세|집값|주거|대출|금리|연금|임금|월급|노동|직장|돌봄|육아|교육비|학부모|학교|병원비|건강보험|건강|운동|걷기|소비자|환불|수수료|배달|택배|쿠팡|편의점|마트|주차|생활폐기물|분리수거|반려동물|노인|청년|가족|장애인|복지|개인정보|온라인플랫폼|보험|식품|음식|김치|한복|쇼핑|여행|관광|유통|소비|요금", 5),
+            (r"논란|반발|불만|피해|불공정|차별|감동|선행|기부|나눔|구조|재회|화제|뜻밖|이색|처음|최초|새로|바뀐다|도입|시행|인권|안전|사기", 3),
+            (r"전시|공연|콘서트|신간|앨범|영화|드라마|축제|미술|음악|운세|고사성어", -2),
         ]
         for pattern, points in groups:
             if re.search(pattern, text):
@@ -173,7 +180,7 @@ def choose_diverse(rows, limit=10):
 
 def main():
     categories = {name: [] for name in FEEDS}
-    event_pattern = re.compile(r"사고|화재|경찰|검찰|법원|범죄|폭행|절도|사기|실종|구조|사망|부상|교통|충돌|추락|폭발|재난|참사|구속|수사|기소|살해|혐의|소방|응급|재판|영장|피해|신고|단속|추돌|침수|붕괴|학대|유괴")
+    event_pattern = re.compile(r"사고|화재|붕괴|추락|충돌|추돌|침수|폭발|실종|구조|재난|참사|사망|부상|교통|범죄|폭행|절도|사기|스토킹|살해|혐의|소방|응급|인명피해|단속|학대|유괴|검거|송치|구속")
     diagnostics = {}
     for category, sources in FEEDS.items():
         seen = set()
@@ -183,9 +190,9 @@ def main():
                 diagnostics[source + ":" + category] = {"ok": True, "today_items": len(rows)}
                 for row in rows:
                     combined = row["title"] + " " + row["description"]
-                    if category == "사건 사고" and not event_pattern.search(combined):
+                    if category == "사건 사고" and (not event_pattern.search(combined) or re.search(r"증시|주가|코스피|코스닥|장관 후보자|검찰개혁|특검법", combined)):
                         continue
-                    if category == "생활 문화" and article_score(category, row) < 1:
+                    if category == "생활 문화" and article_score(category, row) < 2:
                         continue
                     key = re.sub(r"\W+", "", row["title"].lower())
                     link = row["link"].split("?", 1)[0].rstrip("/")
