@@ -263,7 +263,7 @@ def resolve_naver_article(title):
             ratio = difflib.SequenceMatcher(None, target, candidate).ratio()
             if ratio > best_ratio:
                 best_link, best_ratio = row["link"], ratio
-        return best_link if best_ratio >= 0.62 else ""
+        return best_link if best_ratio >= 0.78 else ""
     except Exception:
         return ""
 
