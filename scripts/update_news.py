@@ -797,7 +797,7 @@ def main():
                 row for row in candidates[name]
                 if clean_text(row.get("title", "")) != "동영상뉴스"
                 and not re.fullmatch(r"동영상뉴스 재생시간\s*\d{1,2}:\d{2}", clean_text(row.get("title", "")))
-                and not re.search(r"흉기|칼 들고|전차|탱크|무기|총기|미사일|폭탄|기뢰|핵잠|청해부대|공습|군함|잠수함|전투기|군사|전쟁|음란물|성착취|성폭력|성범죄|포르노|성인물|감량|살 쫙|폭식|탄력 고민|운동 효과|야식 습관|다이어트|체중 감량|몸매", clean_text(row.get("title", "")))
+                and not re.search(r"흉기|칼 들고|칼로|칼을|칼에|칼부림|찔렀|찔러|찌른|총기|권총|소총|총격|전차|탱크|무기|미사일|폭탄|기뢰|핵잠|청해부대|공습|군함|잠수함|전투기|군사|전쟁|음란물|성착취|성폭력|성범죄|포르노|성인물|감량|살 쫙|폭식|탄력 고민|운동 효과|야식 습관|다이어트|체중 감량|몸매", clean_text(row.get("title", "")))
             ]
         categories = deduplicate_across_categories(candidates)
         # Every story here already has a verified direct Naver News URL.
@@ -854,7 +854,7 @@ def main():
     saved_categories = (saved_yesterday or {}).get("categories", {})
     new_yesterday = all_days.get("yesterday", {})
     if saved_yesterday and saved_yesterday.get("date") == yesterday.isoformat() and "생활 문화" not in saved_categories:
-        restricted_title = re.compile(r"흉기|칼 들고|전차|탱크|무기|총기|미사일|폭탄|기뢰|핵잠|청해부대|공습|군함|잠수함|전투기|군사|전쟁|음란물|성착취|성폭력|성범죄|포르노|성인물|감량|살 쫙|폭식|탄력 고민|운동 효과|야식 습관|다이어트|체중 감량|몸매")
+        restricted_title = re.compile(r"흉기|칼 들고|칼로|칼을|칼에|칼부림|찔렀|찔러|찌른|총기|권총|소총|총격|전차|탱크|무기|미사일|폭탄|기뢰|핵잠|청해부대|공습|군함|잠수함|전투기|군사|전쟁|음란물|성착취|성폭력|성범죄|포르노|성인물|감량|살 쫙|폭식|탄력 고민|운동 효과|야식 습관|다이어트|체중 감량|몸매")
         merged = {}
         for category in FEEDS:
             pool, seen = [], set()
