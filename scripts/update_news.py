@@ -2,12 +2,15 @@
 """Fetch today's Korean news on GitHub Actions; publish a same-origin JSON file."""
 import json
 import re
+import difflib
 import time
 import html
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from html.parser import HTMLParser
+from urllib.parse import urljoin
 from zoneinfo import ZoneInfo
 
 KST = ZoneInfo("Asia/Seoul")
@@ -164,6 +167,104 @@ def article_score(category, row):
         score += 1
     return score
 
+
+class NaverRankingParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.rows = []
+        self.capture = None
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        classes = attrs.get("class", "").split()
+        if tag == "a" and ("list_title" in classes or "rankingnews_link" in classes):
+            href = attrs.get("href", "")
+            if href:
+                self.capture = {"link": urljoin("https://news.naver.com", href), "title": ""}
+    def handle_data(self, data):
+        if self.capture is not None:
+            self.capture["title"] += data
+    def handle_endtag(self, tag):
+        if tag == "a" and self.capture is not None:
+            row = {**self.capture, "title": clean_text(self.capture["title"])}
+            if row["title"] and row["link"].startswith("https://"):
+                self.rows.append(row)
+            self.capture = None
+
+def fetch_naver_popular(target_date):
+    url = "https://news.naver.com/main/ranking/popularDay.naver"
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        "Referer": "https://news.naver.com/",
+    })
+    with urllib.request.urlopen(req, timeout=10) as response:
+        payload = response.read(4 * 1024 * 1024 + 1)
+    if len(payload) > 4 * 1024 * 1024:
+        raise ValueError("Naver ranking page too large")
+    parser = NaverRankingParser()
+    parser.feed(payload.decode("utf-8", errors="replace"))
+    rows, seen = [], set()
+    for row in parser.rows:
+        key = re.sub(r"\\W+", "", row["title"].lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append({
+            "title": row["title"],
+            "link": row["link"],
+            "pubDate": datetime.now(KST).isoformat(),
+            "author": "네이버 랭킹",
+            "description": "네이버 뉴스의 언론사별 많이 본 뉴스에서 수집한 인기 기사임. 순위와 노출은 조회 시점에 따라 달라질 수 있음.",
+            "category": "네이버 인기",
+            "rank": len(rows) + 1,
+        })
+        if len(rows) >= 20:
+            break
+    return rows
+
+def title_similarity(a, b):
+    norm = lambda s: re.sub(r"[^가-힣a-z0-9]", "", (s or "").lower())
+    aa, bb = norm(a), norm(b)
+    if not aa or not bb:
+        return 0.0
+    if aa == bb:
+        return 1.0
+    return difflib.SequenceMatcher(None, aa, bb).ratio()
+
+def deduplicate_across_categories(categories):
+    candidates = [row for rows in categories.values() for row in rows]
+    clusters = []
+    for row in candidates:
+        link = row.get("link", "").split("?", 1)[0].rstrip("/")
+        match = None
+        for cluster in clusters:
+            first = cluster[0]
+            first_link = first.get("link", "").split("?", 1)[0].rstrip("/")
+            if (link and link == first_link) or title_similarity(row.get("title"), first.get("title")) >= 0.86:
+                match = cluster
+                break
+        if match is None:
+            clusters.append([row])
+        else:
+            match.append(row)
+    result = {name: [] for name in FEEDS}
+    for cluster in clusters:
+        best = None
+        best_score = -10**9
+        for row in cluster:
+            suggested = row.get("category", "사회")
+            score = article_score(suggested, row)
+            # Prefer the category whose editorial signals best fit this article.
+            for cat in FEEDS:
+                score_cat = article_score(cat, row)
+                if score_cat > score:
+                    suggested, score = cat, score_cat
+            if score > best_score:
+                best, best_score = dict(row), score
+                best["category"] = suggested
+        if best is not None:
+            result[best["category"]].append(best)
+    return result
+
 def choose_diverse(rows, limit=10):
     ranked = sorted(rows, key=lambda row: (article_score(row["category"], row), row["pubDate"]), reverse=True)
     chosen, deferred, source_counts = [], [], {}
@@ -193,8 +294,8 @@ def main():
     for day_key, day_value in targets:
         target_date = day_value.isoformat()
         categories = {name: [] for name in FEEDS}
+        candidates = {name: [] for name in FEEDS}
         for category, sources in FEEDS.items():
-            seen = set()
             for source, url in sources:
                 try:
                     rows = fetch_feed(source, url, target_date)
@@ -207,17 +308,21 @@ def main():
                             continue
                         if category == "생활 문화" and (article_score(category, row) < 2 or re.search(r"주식|증시|코스피|코스닥|증권|투자자|특검|검찰|대통령|국회|장관|정당|후보자|살해|폭행|화재|사망|사건", combined)):
                             continue
-                        key = re.sub(r"\W+", "", row["title"].lower())
-                        link = row["link"].split("?", 1)[0].rstrip("/")
-                        if key in seen or link in seen:
-                            continue
-                        seen.add(key)
-                        seen.add(link)
                         row["category"] = category
-                        categories[category].append(row)
+                        candidates[category].append(row)
                 except Exception as exc:
                     diagnostics[f"{target_date}:{source}:{category}"] = {"ok": False, "error": str(exc)[:180]}
                 time.sleep(0.12)
+
+        if day_key == "today":
+            try:
+                popular = fetch_naver_popular(target_date)
+                diagnostics[f"{target_date}:네이버랭킹"] = {"ok": True, "items": len(popular)}
+            except Exception as exc:
+                popular = []
+                diagnostics[f"{target_date}:네이버랭킹"] = {"ok": False, "error": str(exc)[:180]}
+        else:
+            popular = []
 
         if day_key == "today" and target_date == "2026-11-06":
             verified_today = {
@@ -240,10 +345,9 @@ def main():
                 }],
             }
             for cat, rows in verified_today.items():
-                for row in rows:
-                    if not any(existing["link"] == row["link"] for existing in categories[cat]):
-                        categories[cat].append(row)
+                candidates[cat].extend(rows)
 
+        categories = deduplicate_across_categories(candidates)
         for name in categories:
             categories[name] = choose_diverse(categories[name], 10)
 
