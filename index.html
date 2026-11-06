@@ -8,14 +8,14 @@
 :root{--bg:#f7f7f4;--ink:#191919;--muted:#858585;--line:#e7e7e1;--accent:#d9f36a;--card:#fff}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
 header{max-width:760px;margin:auto;padding:12px 20px 8px}.top{display:flex;justify-content:space-between;align-items:center}.brand{font-size:12px;letter-spacing:3px;font-weight:800}.date{font-size:11px;color:var(--muted)}
-h1{font-family:Georgia,serif;font-size:clamp(42px,11vw,68px);font-weight:400;letter-spacing:-3px;margin:4px 0 0}.sub{font-size:12px;color:var(--muted);letter-spacing:.4px}
-main{max-width:760px;margin:auto;padding:0 20px 60px}.tools{display:flex;gap:8px;margin:22px 0 16px}.search{flex:1;min-width:0;border:1px solid var(--line);background:white;border-radius:9px;padding:13px;font-size:14px;outline:none}.btn{border:1px solid var(--line);background:white;border-radius:9px;padding:0 14px;font-size:12px;cursor:pointer}.btn.active{background:var(--accent);border-color:var(--accent)}
+h1{font-family:Georgia,serif;font-size:clamp(30px,8vw,42px);font-weight:400;letter-spacing:-1.8px;margin:2px 0 0;white-space:nowrap}.sub{font-size:12px;color:var(--muted);letter-spacing:.4px}
+main{max-width:760px;margin:auto;padding:0 20px 60px}.tools{display:flex;gap:8px;margin:12px 0 12px}.search{flex:1;min-width:0;border:1px solid var(--line);background:white;border-radius:8px;padding:8px 11px;font-size:13px;outline:none;height:36px}.btn{border:1px solid var(--line);background:white;border-radius:9px;padding:0 14px;font-size:12px;cursor:pointer}.btn.active{background:var(--accent);border-color:var(--accent)}
 #date-tabs{display:flex;gap:8px;overflow-x:auto;margin:0 0 12px;padding:2px 0 8px;scrollbar-width:none}#date-tabs button{white-space:nowrap;border:1px solid #e6e2df;background:#fff;border-radius:20px;padding:9px 14px;font-size:12px;color:#777}#date-tabs button.active{background:#252525;border-color:#252525;color:#fff;font-weight:700}
 nav{display:flex;gap:7px;overflow:auto;padding:3px 0 15px;scrollbar-width:none}nav button{white-space:nowrap;border:0;background:transparent;padding:9px 13px;border-radius:20px;color:#777;font-size:12px;cursor:pointer}nav button.active{background:#202020;color:white}
 .meta{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--ink);padding:13px 0;font-size:11px;color:var(--muted)}.sectionhead{display:flex;align-items:center;gap:9px;margin:23px 0 5px}.sectionhead strong{font-size:16px;letter-spacing:-.4px;color:#C66F91!important;font-weight:700}.sectionhead span{font-size:10px;color:#888}.day-block{margin-bottom:34px}.dayhead{display:flex;align-items:center;justify-content:space-between;margin:27px 0 12px;padding:0 0 12px;border-bottom:2px solid #222}.dayhead strong{font-size:20px;letter-spacing:-.6px;color:#252525}.dayhead span,.categoryhead span{font-size:11px;color:#888}.categoryhead{display:flex;align-items:center;justify-content:space-between;margin:22px 0 5px}.categoryhead strong{font-size:15px}.rest-heading{margin-top:18px}.featured{background:#fff;border:1px solid #ecece5;border-radius:13px;padding:0 16px;margin:10px 0 22px}.featured .story{padding:17px 0}.featured .story h2{font-size:19px}.picktag{display:inline-block;background:#FFF4F7!important;color:#E0A1B8!important;border-radius:4px;padding:4px 7px;font-size:9px;font-weight:800;letter-spacing:.4px;margin-bottom:8px}.restlist .story{padding:16px 0}.restlist .story h2{font-size:16px}.sectionrule{border:0;border-top:1px solid var(--line);margin:24px 0 0}.story{display:block;padding:19px 0;border-bottom:1px solid var(--line);text-decoration:none;color:inherit}.storytop{display:flex;justify-content:space-between;gap:12px;font-size:10px;color:var(--muted);margin-bottom:9px}.source{font-weight:700;color:#555}.story h2{font-size:18px;line-height:1.45;letter-spacing:-.5px;margin:0 0 8px;font-weight:700}.desc{font-size:13px;line-height:1.65;color:#666;margin:0 0 10px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.storybottom{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#999}.story-title{display:block;width:100%;border:0;padding:0;margin:0 0 8px;background:transparent;text-align:left;color:inherit;font:inherit;font-size:18px;line-height:1.45;letter-spacing:-.5px;font-weight:700;cursor:pointer}.restlist .story-title{font-size:16px}.story-title:after{content:"＋";float:right;font-size:13px;color:#999;font-weight:400;margin-left:8px}.story-detail{margin:10px 0 12px;padding:13px;background:#f7f7f4;border-radius:9px}.detail-summary{font-size:15px;line-height:1.8;color:#333;margin:0 0 12px;white-space:pre-line;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.original-link{display:inline-block;font-size:12px;font-weight:700;color:#222;text-decoration:underline;text-underline-offset:3px}.save{border:0;background:transparent;font-size:19px;padding:2px 4px;cursor:pointer;color:#888}.save.on{color:#111}.empty{text-align:center;padding:60px 10px;color:#888;font-size:13px;line-height:1.8}.foot{padding:28px 0;color:#aaa;font-size:10px;text-align:center}
 </style></head>
 <body>
-<header><div class="top"><div class="date" id="today"></div></div><h1>Daily<br>Brief.</h1></header>
+<header><div class="top"><div class="date" id="today"></div></div><h1>Daily Brief.</h1></header>
 <main><div class="tools"><input id="search" class="search" placeholder="기사 제목 또는 키워드 검색"><button id="refresh" class="btn">새로고침 ↻</button></div>
 <nav id="date-tabs" aria-label="날짜 선택"></nav><nav id="tabs" aria-label="카테고리 선택"></nav><div class="meta"><span id="count">기사를 불러오는 중</span><span id="sort">최신순</span></div><section id="feed"><div class="empty">최신 뉴스를 불러오고 있어요…</div></section></main>
 <script>
@@ -24,7 +24,8 @@ const categories=[["전체",""],["사회","사회"],["생활·문화","생활 �
 let category="",items=[],saved=[],showSaved=false,showPopular=false,dayFilter="today";
 try{saved=JSON.parse(localStorage.getItem("tdn_saved")||"[]");if(!Array.isArray(saved))saved=[];}catch(e){saved=[];}
 const $=s=>document.querySelector(s);
-$("#today").textContent=new Intl.DateTimeFormat("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"short"}).format(new Date());
+function compactDate(date){const d=new Date(date+"T12:00:00+09:00");const p=new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",weekday:"short"}).formatToParts(d);const get=k=>p.find(x=>x.type===k)?.value||"";return get("month")+" "+get("day")+" ("+get("weekday")+")";}
+$("#today").textContent=compactDate(seoulDateKey(new Date()));
 function seoulDateKey(value){
   const parts=new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(value instanceof Date?value:new Date(value));
   const part=k=>parts.find(p=>p.type===k)?.value||"";
@@ -34,7 +35,7 @@ function drawTabs(){ $("#tabs").innerHTML=categories.map(([label,q])=>'<button c
 function drawDateTabs(){
   const days=window.dailyDays||[];
   const today=days[0],yesterday=days[1];
-  const options=[{key:"today",label:today?.label||"오늘"},{key:"yesterday",label:yesterday?.label||"어제"},{key:"all",label:"전체 날짜"}];
+  const options=[{key:"today",label:today?"오늘 · "+compactDate(today.date):"오늘"},{key:"yesterday",label:yesterday?"어제 · "+compactDate(yesterday.date):"어제"},{key:"all",label:"전체 날짜"}];
   $("#date-tabs").innerHTML=options.map(o=>'<button type="button" data-day="'+o.key+'" class="'+(dayFilter===o.key?'active':'')+'">'+esc(o.label)+'</button>').join('');
 }
 async function load(){
@@ -160,7 +161,7 @@ function render(){
   let visibleCount=0;
   for(const day of days){
     const dayCategories=day.categories||{};
-    html+='<section class="day-block"><div class="dayhead"><strong>'+esc(day.label||day.date)+'</strong><span>'+Object.values(dayCategories).reduce((n,rows)=>n+(rows||[]).length,0)+'개</span></div>';
+    html+='<section class="day-block"><div class="dayhead"><strong>'+esc(compactDate(day.date))+'</strong><span>'+Object.values(dayCategories).reduce((n,rows)=>n+(rows||[]).length,0)+'개</span></div>';
     const names=category===""?categoryOrder:[category];
     for(const catName of names){
       const rows=(dayCategories[catName]||[]).filter(matches);
