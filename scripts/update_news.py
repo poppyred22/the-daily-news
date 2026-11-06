@@ -237,6 +237,26 @@ def safe_news_summary(row):
         return "행사 현장의 응급의료 지원과 사고 대응 과정을 다룬 기사다.\n응급 상황에서 의료 지원이 제때 이뤄졌는지, 행사 안전관리 책임은 무엇인지가 쟁점이다.\n대규모 행사에서 의료 인력과 구급 체계를 사전에 갖추는 중요성을 짚는다."
     if re.search(r"아무것도 먹지 않는 아이|학대", title):
         return "아동 보호와 돌봄 환경을 둘러싼 문제를 다룬 기사다.\n과거 사례를 되짚으며 주변 어른과 관련 기관의 대응이 적절했는지 살펴본다.\n아동의 안전을 위해 조기 발견과 보호 체계가 중요하다는 점을 전한다."
+    if re.search(r"입동|한파|영하권|날씨|체감 영하", title):
+        return "입동을 전후해 기온이 크게 내려가며 초겨울 추위가 찾아온다는 예보다.\n아침 기온이 영하권으로 떨어지고 바람까지 강해 체감온도가 더 낮아질 수 있다.\n지역별 기온과 특보 여부를 확인하고 추위에 대비할 필요가 있다."
+    if re.search(r"이혼해 강남아파트|위장 이혼", title):
+        return "이혼 과정에서 이전된 부동산을 둘러싸고 미국에서 반환 소송이 제기됐다는 내용이다.\n당사자들이 재산 이전의 성격과 당시 합의 내용을 두고 다투는 것으로 전해졌다.\n법원이 이혼과 재산 분할의 실질을 어떻게 판단할지가 관심사다."
+    if re.search(r"의사 선생님|농어촌.*의사", title):
+        return "의료 인력을 구하기 어려운 농어촌 지역이 의사 유치를 위해 주거 지원책을 마련했다는 기사다.\n숙소 조성에 큰 예산을 투입해 근무 여건을 개선하려는 시도가 소개됐다.\n지역 의료 공백을 줄이는 데 실제로 도움이 될지가 과제로 남는다."
+    if re.search(r"이용철 법무부 장관 후보자", title):
+        return "이용철 법무부 장관 후보자가 검찰 개혁을 차질 없이 추진하겠다는 입장을 밝혔다.\n후보자의 발언을 통해 향후 검찰 제도와 수사 체계 개편 방향이 다시 주목받고 있다.\n구체적인 정책은 인사청문과 후속 발표에서 확인될 전망이다."
+    if re.search(r"머스크.*태극기|태극기 사진", title):
+        return "일론 머스크가 태극기 이미지를 공개해 게시 배경에 관심이 모였다.\n온라인에서는 한국과 관련한 메시지인지 여러 해석이 나왔지만, 게시 의도는 맥락을 확인할 필요가 있다.\n글로벌 유명 인사의 짧은 게시물이 국내에서도 화제가 된 사례다."
+    if re.search(r"미 중간선거로 보는 기독교 정치", title):
+        return "미국 중간선거 결과를 계기로 기독교 보수 진영의 정치적 결속과 내부 균열을 분석한 기사다.\n선거 이후 종교계와 정치권의 관계, 당내 노선 경쟁이 주요 쟁점으로 다뤄진다.\n향후 미국 정치 지형에 미칠 영향이 주목된다."
+    if re.search(r"젠슨 황.*소환장", title):
+        return "젠슨 황을 둘러싼 주가 변동과 법적 소환장 관련 소식이 함께 전해졌다.\n기사에서는 자산 평가액 변화와 개인적 사안에 대한 법적 절차를 다룬다.\n관련 의혹의 사실관계와 절차가 어떻게 진행될지 지켜볼 필요가 있다."
+    if re.search(r"대승거둔 美 민주당|민주사회주의자 시장 당선", title):
+        return "미국 중간선거에서 민주당이 큰 성과를 거둔 뒤 당내 노선 경쟁이 주목받고 있다.\n온건파와 진보파가 향후 정책 방향과 주도권을 두고 경쟁할 가능성이 제기된다.\n이번 선거 결과가 다음 대선 구도에 미칠 영향도 관심사다."
+    if re.search(r"물·땅·전기|유럽 주요국서 동시 시위", title):
+        return "유럽 여러 나라에서 대규모 인프라 시설의 자원 사용을 우려하는 시위가 이어졌다는 내용이다.\n물과 토지, 전력 수요가 지역 환경과 주민 생활에 미치는 영향이 쟁점으로 떠올랐다.\n기술 투자 확대와 지역 사회의 수용성을 어떻게 조율할지가 과제다."
+    if re.search(r"헤그세스|상원행 거론", title):
+        return "미국 중간선거 이후 트럼프 행정부의 인사 책임론과 고위 인사의 거취를 둘러싼 관측이 나왔다.\n정치권에서 여러 가능성이 거론되고 있지만 공식적으로 확정된 인사 변화와는 구분할 필요가 있다.\n행정부 내부의 후속 대응이 주목된다."
     return ""
 
 def fallback_summary(row):
@@ -821,10 +841,28 @@ def main():
     # Do not keep the old combined "생활 문화" schema after the editorial split.
     saved_categories = (saved_yesterday or {}).get("categories", {})
     new_yesterday = all_days.get("yesterday", {})
-    if (saved_yesterday and saved_yesterday.get("date") == yesterday.isoformat()
-            and "생활 문화" not in saved_categories
-            and saved_yesterday.get("total", 0) > new_yesterday.get("total", 0)):
-        all_days["yesterday"] = saved_yesterday
+    if saved_yesterday and saved_yesterday.get("date") == yesterday.isoformat() and "생활 문화" not in saved_categories:
+        restricted_title = re.compile(r"흉기|칼 들고|전차|탱크|무기|총기|미사일|폭탄|기뢰|핵잠|청해부대|공습|군함|잠수함|전투기|군사|전쟁|음란물|성착취|성폭력|성범죄|포르노|성인물|감량|살 쫙|폭식|탄력 고민|운동 효과|야식 습관|다이어트|체중 감량|몸매")
+        merged = {}
+        for category in FEEDS:
+            pool, seen = [], set()
+            for row in (new_yesterday.get("categories", {}).get(category, []) + saved_categories.get(category, [])):
+                if restricted_title.search(clean_text(row.get("title", ""))):
+                    continue
+                key = (row.get("naverLink") or row.get("link") or "").split("?", 1)[0]
+                if key and key in seen:
+                    continue
+                if key:
+                    seen.add(key)
+                copy = dict(row)
+                copy["category"] = category
+                pool.append(copy)
+            merged[category] = choose_diverse(pool, 10)
+        merged_total = sum(len(rows) for rows in merged.values())
+        if merged_total > new_yesterday.get("total", 0):
+            new_yesterday["categories"] = merged
+            new_yesterday["total"] = merged_total
+            all_days["yesterday"] = new_yesterday
 
     total = sum(day["total"] for day in all_days.values())
     result = {
