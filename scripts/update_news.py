@@ -18,8 +18,7 @@ FEEDS = {
         ("연합뉴스", "https://www.yna.co.kr/rss/society.xml"),
         ("SBS", "https://news.sbs.co.kr/news/newsflashRssFeed.do"),
         ("매일신문", "https://www.imaeil.com/rss?cate=society"),
-        ("한겨레", "http://www.hani.co.kr/rss/"),
-    ],
+            ],
     "사회": [
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/society_news.xml"),
         ("뉴시스", "https://www.newsis.com/RSS/society.xml"),
@@ -47,7 +46,6 @@ FEEDS = {
     "IT 과학": [
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/science_news.xml"),
         ("전자신문", "https://rss.etnews.com/Section901.xml"),
-        ("ZDNet Korea", "http://feeds.feedburner.com/zdkorea"),
         ("뉴시스", "https://www.newsis.com/RSS/health.xml"),
     ],
 }
@@ -94,7 +92,7 @@ def fetch_feed(source, url):
         "User-Agent": "TheDailyNews/1.0 (+https://poppyred22.github.io/the-daily-news/)",
         "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
     })
-    with urllib.request.urlopen(req, timeout=18) as response:
+    with urllib.request.urlopen(req, timeout=8) as response:
         payload = response.read(5 * 1024 * 1024 + 1)
     if len(payload) > 5 * 1024 * 1024:
         raise ValueError("feed too large")
