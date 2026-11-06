@@ -13,6 +13,11 @@ from zoneinfo import ZoneInfo
 KST = ZoneInfo("Asia/Seoul")
 TODAY = datetime.now(KST).date().isoformat()
 FEEDS = {
+    "사건 사고": [
+        ("뉴시스", "https://www.newsis.com/RSS/society.xml"),
+        ("연합뉴스", "https://www.yna.co.kr/rss/news.xml"),
+        ("SBS", "https://news.sbs.co.kr/news/newsflashRssFeed.do"),
+    ],
     "사회": [
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/society_news.xml"),
         ("뉴시스", "https://www.newsis.com/RSS/society.xml"),
@@ -20,10 +25,6 @@ FEEDS = {
     "생활 문화": [
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/culture_news.xml"),
         ("뉴시스", "https://www.newsis.com/RSS/culture.xml"),
-    ],
-    "사건 사고": [
-        ("연합뉴스", "https://www.yna.co.kr/rss/news.xml"),
-        ("SBS", "https://news.sbs.co.kr/news/newsflashRssFeed.do"),
     ],
     "세계": [
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/kh_world.xml"),
@@ -114,6 +115,7 @@ def fetch_feed(source, url):
 
 def main():
     categories = {name: [] for name in FEEDS}
+    event_pattern = re.compile(r"사고|화재|경찰|검찰|법원|범죄|폭행|절도|사기|실종|구조|사망|부상|교통|충돌|추락|폭발|재난|참사|구속|수사|기소|살해|혐의|소방|응급|재판|영장|피해|신고|단속|추돌|침수|붕괴|학대|유괴")
     seen = set()
     diagnostics = {}
     for category, sources in FEEDS.items():
@@ -122,6 +124,8 @@ def main():
                 rows = fetch_feed(source, url)
                 diagnostics[source + ":" + category] = {"ok": True, "today_items": len(rows)}
                 for row in rows:
+                    if category == "사건 사고" and not event_pattern.search(row["title"] + " " + row["description"]):
+                        continue
                     key = re.sub(r"\\W+", "", row["title"].lower())
                     link = row["link"].split("?", 1)[0].rstrip("/")
                     if key in seen or link in seen:
@@ -143,8 +147,17 @@ def main():
         "total": total,
         "categories": categories,
     }
+    payload = json.dumps(result, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     with open("news.json", "w", encoding="utf-8") as output:
-        json.dump(result, output, ensure_ascii=False, separators=(",", ":"))
+        output.write(payload)
+    with open("index.html", "r", encoding="utf-8") as source:
+        page = source.read()
+    marker = "window.NEWS_DATA = null; // UPDATED_AUTOMATICALLY_BY_NEWS_WORKFLOW"
+    if marker not in page:
+        raise SystemExit("NEWS_DATA marker not found in index.html")
+    page = page.replace(marker, "window.NEWS_DATA = " + payload + "; // UPDATED_AUTOMATICALLY_BY_NEWS_WORKFLOW")
+    with open("index.html", "w", encoding="utf-8") as output:
+        output.write(page)
     print("NEWS_DATE=" + TODAY)
     print("NEWS_TOTAL=" + str(total))
     for name, rows in categories.items():
