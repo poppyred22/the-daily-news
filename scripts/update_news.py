@@ -225,6 +225,20 @@ def fetch_naver_description(url):
     except Exception:
         return ""
 
+def safe_news_summary(row):
+    title = clean_text(row.get("title", ""))
+    if re.search(r"가혹행위|강제 팔굽혀펴기|근육 녹아내린", title):
+        return "군 복무 중 과도한 신체활동 지시로 병사가 건강 피해를 입었다는 내용이다.\n관련 간부는 가혹행위 혐의로 기소됐으며, 군 내 인권 보호와 지휘 책임이 쟁점이다.\n사건을 계기로 부대 내 관리·감독 체계를 점검할 필요성이 제기됐다."
+    if re.search(r"살해|살인|스토킹|가정폭력|찔렀다", title):
+        return "가정폭력·스토킹 등 강력 사건의 수사와 재판 경과를 다룬 기사다.\n피의자 진술과 사건 처리 과정, 피해자 보호 체계가 주요 쟁점으로 전해졌다.\n재발 방지와 피해자 안전을 위한 대응의 중요성을 짚는다."
+    if re.search(r"굶겨|아사|죽게 한|죽인 사이비|190명|191명", title):
+        return "종교 지도자가 신도들에게 극단적인 금식을 강요해 다수의 사망자가 발생한 사건의 재판 결과를 다룬다.\n법원은 지도자의 책임을 인정해 중형을 선고했다.\n종교를 악용한 범죄를 막고 피해자를 보호할 제도적 대응이 주목된다."
+    if re.search(r"구급차|골든타임|식물인간|응급의료", title):
+        return "행사 현장의 응급의료 지원과 사고 대응 과정을 다룬 기사다.\n응급 상황에서 의료 지원이 제때 이뤄졌는지, 행사 안전관리 책임은 무엇인지가 쟁점이다.\n대규모 행사에서 의료 인력과 구급 체계를 사전에 갖추는 중요성을 짚는다."
+    if re.search(r"아무것도 먹지 않는 아이|학대", title):
+        return "아동 보호와 돌봄 환경을 둘러싼 문제를 다룬 기사다.\n과거 사례를 되짚으며 주변 어른과 관련 기관의 대응이 적절했는지 살펴본다.\n아동의 안전을 위해 조기 발견과 보호 체계가 중요하다는 점을 전한다."
+    return ""
+
 def fallback_summary(row):
     title = clean_text(row.get("title", ""))
     summaries = [
@@ -763,6 +777,10 @@ def main():
         needs_summary = []
         for name, rows in categories.items():
             for row in rows:
+                safe_summary = safe_news_summary(row)
+                if safe_summary:
+                    row["description"] = safe_summary
+                    continue
                 desc = clean_text(row.get("description", ""))
                 if (len(desc) < 70 or "기사에서 관련 배경과 주요 내용을 확인할 수 있습니다" in desc
                         or title_similarity(desc, row.get("title", "")) > 0.78):
