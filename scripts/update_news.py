@@ -268,7 +268,7 @@ def main():
         output.write(payload)
     with open("index.html", "r", encoding="utf-8") as source:
         page = source.read()
-    marker = re.compile(r"window\\.NEWS_DATA\\s*=\\s*.*?;\\s*// UPDATED_AUTOMATICALLY_BY_NEWS_WORKFLOW", re.S)
+    marker = re.compile(r"window\.NEWS_DATA\s*=\s*.*?;\s*// UPDATED_AUTOMATICALLY_BY_NEWS_WORKFLOW", re.S)
     if not marker.search(page):
         raise SystemExit("NEWS_DATA marker not found in index.html")
     page = marker.sub(lambda _: "window.NEWS_DATA = " + payload + "; // UPDATED_AUTOMATICALLY_BY_NEWS_WORKFLOW", page, count=1)
