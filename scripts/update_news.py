@@ -860,7 +860,7 @@ def main():
                 pool.append(copy)
             merged[category] = choose_diverse(pool, 10)
         merged_total = sum(len(rows) for rows in merged.values())
-        if merged_total > new_yesterday.get("total", 0):
+        if merged_total >= new_yesterday.get("total", 0):
             new_yesterday["categories"] = merged
             new_yesterday["total"] = merged_total
             all_days["yesterday"] = new_yesterday
