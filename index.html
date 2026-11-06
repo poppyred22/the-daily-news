@@ -29,101 +29,32 @@ function seoulDateKey(value){
 function drawTabs(){ $("#tabs").innerHTML=categories.map(([label,q])=>'<button class="'+(category===q?'active':'')+'" data-q="'+q+'">'+label+'</button>').join('')+'<button data-saved="1" class="'+(showSaved?'active':'')+'">★ 저장한 기사</button>'; }
 async function load(){
   const todayKey=seoulDateKey(new Date());
-  const cacheKey="tdn_news_"+todayKey;
-  try{
-    const cached=JSON.parse(localStorage.getItem(cacheKey)||"null");
-    if(cached&&Object.keys(cached).length){
-      window.dailyCategoryItems=cached;
-      items=category===""?Object.values(cached).flat().sort((a,b)=>new Date(b.pubDate)-new Date(a.pubDate)):cached[category]||[];
-      render();
-      $("#count").textContent=items.length+"개 · 저장된 오늘 기사 갱신 중";
-    }else{
-      window.dailyCategoryItems={};
-      $("#feed").innerHTML='<div class="empty">오늘의 뉴스를 가져오는 중…</div>';
-      $("#count").textContent="뉴스 연결 중";
-    }
-  }catch(e){
-    window.dailyCategoryItems={};
-    $("#feed").innerHTML='<div class="empty">오늘의 뉴스를 가져오는 중…</div>';
-    $("#count").textContent="뉴스 연결 중";
-  }
-  const feeds={
-    "사회":[["경향신문","https://www.khan.co.kr/rss/rssdata/society_news.xml"],["뉴시스","https://www.newsis.com/RSS/society.xml"]],
-    "생활 문화":[["경향신문","https://www.khan.co.kr/rss/rssdata/culture_news.xml"],["뉴시스","https://www.newsis.com/RSS/culture.xml"]],
-    "사건 사고":[["연합뉴스","https://www.yna.co.kr/rss/news.xml"],["SBS","https://news.sbs.co.kr/news/newsflashRssFeed.do"]],
-    "세계":[["경향신문","https://www.khan.co.kr/rss/rssdata/kh_world.xml"],["뉴시스","https://www.newsis.com/RSS/international.xml"]],
-    "IT 과학":[["경향신문","https://www.khan.co.kr/rss/rssdata/science_news.xml"],["전자신문","https://rss.etnews.com/Section901.xml"]]
-  };
-  const categoryItems={};
-  for(const cat of Object.keys(feeds)) categoryItems[cat]=[];
-  const seenTitles=new Set(),seenLinks=new Set();
-  const tasks=Object.entries(feeds).flatMap(([cat,sources])=>sources.map(([source,url])=>({cat,source,url})));
-  let finished=0,failures=0,total=0;
   window.dailyLoading=true;
-  const updateView=()=>{
-    for(const cat of Object.keys(categoryItems))categoryItems[cat].sort((a,b)=>new Date(b.pubDate)-new Date(a.pubDate));
-    for(const cat of Object.keys(categoryItems))categoryItems[cat]=categoryItems[cat].slice(0,10);
-    window.dailyCategoryItems=categoryItems;
-    window.dailyLoading=finished<tasks.length;
-    items=category===""?Object.values(categoryItems).flat().sort((a,b)=>new Date(b.pubDate)-new Date(a.pubDate)):categoryItems[category]||[];
-    if(total>0){
-      try{localStorage.setItem(cacheKey,JSON.stringify(categoryItems));}catch(e){}
+  window.dailyCategoryItems={};
+  items=[];
+  $("#count").textContent="오늘 뉴스 확인 중";
+  $("#feed").innerHTML='<div class="empty">오늘의 뉴스를 불러오고 있어요…</div>';
+  try{
+    const response=await fetch("./news.json?v="+Date.now(),{cache:"no-store"});
+    if(!response.ok)throw new Error("뉴스 파일 응답 오류 ("+response.status+")");
+    const data=await response.json();
+    if(data.date!==todayKey){
+      window.dailyLoading=false;
+      $("#count").textContent="오늘 뉴스 업데이트 대기 중";
+      $("#feed").innerHTML='<div class="empty">오늘 기사 데이터를 갱신하고 있어요.<br>잠시 후 새로고침해 주세요.</div>';
+      return;
     }
+    window.dailyCategoryItems=data.categories||{};
+    items=category===""?Object.values(window.dailyCategoryItems).flat():window.dailyCategoryItems[category]||[];
+    window.dailyLoading=false;
     render();
-    $("#count").textContent=total+"개 · 오늘 기사 수집 중 ("+finished+"/"+tasks.length+")"+(failures?" · "+failures+"개 피드 오류":"");
-  };
-  const jobs=tasks.map(async task=>{
-    const controller=new AbortController();
-    const timeout=setTimeout(()=>controller.abort(),20000);
-    try{
-      let response=null,lastError=null;
-      const urls=[
-        "https://proxy.cors.dev/"+task.url,
-        "https://api.allorigins.win/raw?url="+encodeURIComponent(task.url),
-        "https://corsproxy.io/?url="+encodeURIComponent(task.url)
-      ];
-      for(const proxyUrl of urls){
-        try{
-          response=await fetch(proxyUrl,{credentials:"omit",cache:"no-store",signal:controller.signal});
-          if(response.ok)break;
-          lastError=new Error("HTTP "+response.status);
-          response=null;
-        }catch(err){lastError=err;response=null;}
-      }
-      if(!response)throw lastError||new Error("피드 연결 실패");
-      const xml=new DOMParser().parseFromString(await response.text(),"application/xml");
-      if(xml.querySelector("parsererror"))throw Error(task.source+" XML 오류");
-      let nodes=[...xml.getElementsByTagName("item")],atom=nodes.length===0;
-      if(atom)nodes=[...xml.getElementsByTagName("entry")];
-      const rows=nodes.map(node=>{
-        const pick=names=>{for(const name of names){const el=[...node.getElementsByTagName("*")].find(n=>n.localName===name);if(el)return el.textContent||"";}return "";};
-        const linkEl=[...node.getElementsByTagName("*")].find(n=>n.localName==="link");
-        const link=atom?(linkEl?.getAttribute("href")||linkEl?.textContent||""):(linkEl?.textContent||"");
-        return {title:pick(["title"]).trim(),link:link.trim(),pubDate:pick(["pubDate","published","updated","date"]),author:task.source,description:pick(["description","summary","content","encoded"]),category:task.cat};
-      }).filter(x=>x.title&&x.link);
-      for(const x of rows){
-        const d=new Date(x.pubDate);
-        if(isNaN(d.getTime())||seoulDateKey(d)!==todayKey)continue;
-        const titleKey=x.title.toLowerCase().replace(/\s+/g,"").replace(/[“”‘’"'.,!?·:()[\]{}]/g,"");
-        const linkKey=x.link.split("?")[0].replace(/\/$/,"");
-        if(seenTitles.has(titleKey)||seenLinks.has(linkKey))continue;
-        seenTitles.add(titleKey);seenLinks.add(linkKey);
-        categoryItems[task.cat].push(x);total++;
-      }
-    }catch(e){failures++;}
-    finally{
-      clearTimeout(timeout);
-      finished++;
-      updateView();
-    }
-  });
-  await Promise.allSettled(jobs);
-  window.dailyLoading=false;
-  if(total===0){
-    $("#count").textContent="오늘 기사 0개 · "+failures+"개 피드 연결 실패";
-    $("#feed").innerHTML='<div class="empty">뉴스 서버에서 기사를 가져오지 못했어요.<br>잠시 후 새로고침을 눌러 주세요.</div>';
-  }else{
-    $("#count").textContent=total+"개 · 오늘 기사"+(failures?" · "+failures+"개 피드 응답 없음":"");
+    const total=Object.values(window.dailyCategoryItems).reduce((sum,rows)=>sum+(rows||[]).length,0);
+    $("#count").textContent=total+"개 · 오늘 기사 · "+(data.generatedAt||"").replace("T"," ").slice(0,16)+" 기준";
+  }catch(error){
+    window.dailyLoading=false;
+    $("#count").textContent="뉴스 연결 오류";
+    $("#feed").innerHTML='<div class="empty">오늘의 뉴스 데이터를 불러오지 못했어요.<br>잠시 후 다시 시도해 주세요.</div>';
+    console.error("Daily News load failed:",error);
   }
 }
 function pickScore(x){
