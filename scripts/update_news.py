@@ -591,6 +591,13 @@ def main():
         categories = {name: [] for name in FEEDS}
         candidates = {name: [] for name in FEEDS}
 
+        # Keep the deliberately prepared next-day placeholder until its 10:00 KST update.
+        if day_key == "today" and day_value > now.date() and now.hour < 10:
+            prepared = (previous_data.get("days") or {}).get("today")
+            if prepared and prepared.get("date") == target_date:
+                all_days[day_key] = prepared
+                continue
+
         if day_key == "today":
             # Today's live section pages provide the freshest headlines.
             section_map = {
@@ -715,12 +722,36 @@ def main():
         for name in candidates:
             candidates[name] = [
                 row for row in candidates[name]
-                if clean_text(row.get("title", "")) != "동영상뉴스" and not re.fullmatch(r"동영상뉴스 재생시간\s*\d{1,2}:\d{2}", clean_text(row.get("title", "")))
+                if clean_text(row.get("title", "")) != "동영상뉴스"
+                and not re.fullmatch(r"동영상뉴스 재생시간\s*\d{1,2}:\d{2}", clean_text(row.get("title", "")))
+                and not re.search(r"흉기|칼 들고|전차|탱크|무기|총기|미사일|폭탄", clean_text(row.get("title", "")))
             ]
         categories = deduplicate_across_categories(candidates)
         # Every story here already has a verified direct Naver News URL.
         for name in categories:
             categories[name] = choose_diverse(categories[name], 10)
+
+        # Fetch a real article lead when the RSS snippet merely repeats the headline.
+        needs_summary = []
+        for name, rows in categories.items():
+            for row in rows:
+                desc = clean_text(row.get("description", ""))
+                if (len(desc) < 70 or "기사에서 관련 배경과 주요 내용을 확인할 수 있습니다" in desc
+                        or title_similarity(desc, row.get("title", "")) > 0.78):
+                    url = row.get("naverLink") or row.get("link", "")
+                    if url.startswith("https://") and "news.naver.com/" in url:
+                        needs_summary.append((row, url))
+        with ThreadPoolExecutor(max_workers=12) as pool:
+            summary_jobs = [(row, pool.submit(fetch_naver_description, url)) for row, url in needs_summary]
+            for row, future in summary_jobs:
+                try:
+                    fetched = clean_text(future.result())
+                    if len(fetched) >= 70 and title_similarity(fetched, row.get("title", "")) < 0.78:
+                        row["description"] = fetched[:1200]
+                except Exception:
+                    pass
+
+        for name in categories:
             for row in categories[name]:
                 if len((row.get("description") or "").strip()) < 70:
                     row["description"] = fallback_summary(row) or (
