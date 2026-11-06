@@ -217,8 +217,14 @@ def fetch_naver_description(url):
             return ""
         parser = NaverArticleTextParser()
         parser.feed(payload.decode("utf-8", errors="replace"))
-        text = parser.meta_description or " ".join(parser.article_parts)
-        text = re.sub(r"\s+", " ", clean_text(text))
+        meta = clean_text(parser.meta_description)
+        body = clean_text(" ".join(parser.article_parts))
+        if not meta or len(meta) < 70 or title_similarity(meta, "") > 2:
+            text = body or meta
+        else:
+            text = meta
+        if body and (len(meta) < 70 or re.sub(r"[^가-힣a-z0-9]", "", meta.lower()) in re.sub(r"[^가-힣a-z0-9]", "", (row_title := "") .lower())):
+            text = body
         text = re.sub(r"\s*(무단전재|재배포 금지|저작권자).*$", "", text)
         return text[:1200].strip()
     except Exception:
@@ -751,7 +757,7 @@ def main():
                 row for row in candidates[name]
                 if clean_text(row.get("title", "")) != "동영상뉴스"
                 and not re.fullmatch(r"동영상뉴스 재생시간\s*\d{1,2}:\d{2}", clean_text(row.get("title", "")))
-                and not re.search(r"흉기|칼 들고|전차|탱크|무기|총기|미사일|폭탄|기뢰|핵잠|청해부대|공습|군함|잠수함|전투기|군사|전쟁|음란물|성착취|성폭력|성범죄|포르노|성인물", clean_text(row.get("title", "")))
+                and not re.search(r"흉기|칼 들고|전차|탱크|무기|총기|미사일|폭탄|기뢰|핵잠|청해부대|공습|군함|잠수함|전투기|군사|전쟁|음란물|성착취|성폭력|성범죄|포르노|성인물|감량|살 쫙|폭식|탄력 고민|운동 효과|야식 습관|다이어트|체중 감량|몸매", clean_text(row.get("title", "")))
             ]
         categories = deduplicate_across_categories(candidates)
         # Every story here already has a verified direct Naver News URL.
