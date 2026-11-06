@@ -551,8 +551,10 @@ def choose_diverse(rows, limit=10):
 
 def main():
     today = datetime.now(KST).date()
+    yesterday = today.fromordinal(today.toordinal() - 1)
     targets = [
         ("today", today),
+        ("yesterday", yesterday),
     ]
     weekday_ko = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
     all_days = {}
@@ -565,29 +567,28 @@ def main():
         categories = {name: [] for name in FEEDS}
         candidates = {name: [] for name in FEEDS}
 
-        # Collect directly from Naver's live section pages. Keep only Naver article URLs.
-        section_map = {
-            "사회": 102,
-            "생활 문화": 103,
-            "세계": 104,
-            "IT 과학": 105,
-        }
-        for category, section_id in section_map.items():
-            try:
-                rows = fetch_naver_section(section_id, target_date)
-                for row in rows:
-                    row["category"] = category
-                candidates[category].extend(rows)
-                diagnostics[f"{target_date}:네이버섹션:{category}"] = {"ok": True, "items": len(rows)}
-            except Exception as exc:
-                diagnostics[f"{target_date}:네이버섹션:{category}"] = {"ok": False, "error": str(exc)[:180]}
-
-        # Split accident/crime stories out of the Society section without duplicating them.
-        society_rows = candidates["사회"]
-        candidates["사건 사고"] = [row for row in society_rows if event_pattern.search(row.get("title", ""))]
-        candidates["사회"] = [row for row in society_rows if not event_pattern.search(row.get("title", ""))]
-
         if day_key == "today":
+            # Today's live section pages provide the freshest headlines.
+            section_map = {
+                "사회": 102,
+                "생활 문화": 103,
+                "세계": 104,
+                "IT 과학": 105,
+            }
+            for category, section_id in section_map.items():
+                try:
+                    rows = fetch_naver_section(section_id, target_date)
+                    for row in rows:
+                        row["category"] = category
+                    candidates[category].extend(rows)
+                    diagnostics[f"{target_date}:네이버섹션:{category}"] = {"ok": True, "items": len(rows)}
+                except Exception as exc:
+                    diagnostics[f"{target_date}:네이버섹션:{category}"] = {"ok": False, "error": str(exc)[:180]}
+
+            # Split accident/crime stories out of the Society section without duplication.
+            society_rows = candidates["사회"]
+            candidates["사건 사고"] = [row for row in society_rows if event_pattern.search(row.get("title", ""))]
+            candidates["사회"] = [row for row in society_rows if not event_pattern.search(row.get("title", ""))]
             try:
                 popular = fetch_naver_popular(target_date)
                 diagnostics[f"{target_date}:네이버랭킹"] = {"ok": True, "items": len(popular)}
@@ -595,8 +596,30 @@ def main():
                 popular = []
                 diagnostics[f"{target_date}:네이버랭킹"] = {"ok": False, "error": str(exc)[:180]}
         else:
+            # Naver's live section pages only show current stories. Query News RSS
+            # and retain only items actually published on the target date.
+            yesterday_queries = {
+                "사건 사고": ["사고 화재 구조 수사 사건", "범죄 경찰 사건 사고"],
+                "사회": ["사회 정책 교육 노동 복지", "국회 정부 주민 노동"],
+                "생활 문화": ["생활 문화 건강 날씨 소비자", "음식 여행 문화 건강"],
+                "세계": ["국제 세계 외교 전쟁 경제", "미국 중국 일본 유럽"],
+                "IT 과학": ["IT 과학 AI 인공지능 반도체", "기술 로봇 우주 과학"],
+            }
+            jobs = []
+            with ThreadPoolExecutor(max_workers=10) as pool:
+                for category, queries in yesterday_queries.items():
+                    for query in queries:
+                        jobs.append((category, query, pool.submit(fetch_naver_search_rss, query, category, target_date)))
+                for category, query, future in jobs:
+                    try:
+                        rows = future.result()
+                        for row in rows:
+                            row["category"] = category
+                        candidates[category].extend(rows)
+                        diagnostics[f"{target_date}:네이버RSS:{category}:{query}"] = {"ok": True, "items": len(rows)}
+                    except Exception as exc:
+                        diagnostics[f"{target_date}:네이버RSS:{category}:{query}"] = {"ok": False, "error": str(exc)[:180]}
             popular = []
-
 
         # Drop malformed video placeholder titles before selecting the 10 stories.
         for name in candidates:
@@ -624,17 +647,6 @@ def main():
             "categories": categories,
             "popular": popular,
         }
-
-    yesterday = today.fromordinal(today.toordinal() - 1)
-    weekday_yesterday = weekday_ko[yesterday.weekday()]
-    all_days["yesterday"] = {
-        "date": yesterday.isoformat(),
-        "weekday": weekday_yesterday,
-        "label": "어제 · " + f"{yesterday.month}월 {yesterday.day}일 " + weekday_yesterday,
-        "total": 0,
-        "categories": {name: [] for name in FEEDS},
-        "popular": [],
-    }
 
     total = sum(day["total"] for day in all_days.values())
     result = {
