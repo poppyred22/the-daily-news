@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
     paths:
-      - "index.html"
       - "scripts/update_news.py"
       - ".github/workflows/update-news.yml"
   schedule:
