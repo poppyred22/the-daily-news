@@ -576,7 +576,7 @@ def main():
         for name in candidates:
             candidates[name] = [
                 row for row in candidates[name]
-                if not re.fullmatch(r"동영상뉴스 재생시간\\s*\\d{1,2}:\\d{2}", clean_text(row.get("title", "")))
+                if not re.fullmatch(r"동영상뉴스 재생시간\s*\d{1,2}:\d{2}", clean_text(row.get("title", "")))
             ]
         categories = deduplicate_across_categories(candidates)
         # Every story here already has a verified direct Naver News URL.
