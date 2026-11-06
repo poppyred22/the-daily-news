@@ -231,7 +231,7 @@ class NaverSectionParser(HTMLParser):
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
         href = attrs.get("href", "")
-        if tag == "a" and re.search(r"n\\.news\\.naver\\.com/article/|news\\.naver\\.com/article/", href):
+        if tag == "a" and re.search(r"n\.news\.naver\.com/article/|news\.naver\.com/article/", href):
             self.current = {"link": href.split("?")[0], "title": ""}
     def handle_data(self, data):
         if self.current is not None:
@@ -398,7 +398,6 @@ def main():
     today = datetime.now(KST).date()
     targets = [
         ("today", today),
-        ("yesterday", today.fromordinal(today.toordinal() - 1)),
     ]
     weekday_ko = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
     all_days = {}
@@ -456,34 +455,12 @@ def main():
         else:
             popular = []
 
-        if day_key == "today" and target_date == "2026-11-06":
-            verified_today = {
-                "생활 문화": [{
-                    "title": "뉴진스 전속계약서 공개 파장…‘부적절한 연애’ 금지·소속사 비판 제한",
-                    "link": "https://www.hani.co.kr/arti/culture/music/1286095.html",
-                    "pubDate": "2026-11-06T17:58:00+09:00",
-                    "author": "한겨레",
-                    "description": "미국 뉴욕타임스가 뉴진스가 미성년자 시절 체결한 전속계약서에 교육권과 수면권 등 보호 조항이 빠져 있었다고 보도함. 계약서에는 소속사를 비판하는 발언을 제한하고 계약 종료 뒤에도 음악과 인공지능으로 만든 목소리를 활용할 수 있다는 내용이 담긴 것으로 전해져 논란이 커짐. 하이브는 연습생과 국가 표준 청소년 부속합의서를 체결했다고 설명함.",
-                    "category": "생활 문화",
-                    "priority": 1,
-                }],
-                "IT 과학": [{
-                    "title": "늙지 않는 기계, 늙어가는 인간…접점은 어디에 있을까",
-                    "link": "https://www.hani.co.kr/arti/science/future/1286082.html",
-                    "pubDate": "2026-11-06T10:30:00+09:00",
-                    "author": "한겨레",
-                    "description": "인공지능과 자동화 기술이 빠르게 발전하면서 기술과 인간이 함께 살아갈 방법을 질문함. 기계가 맡을 수 있는 일과 사람이 지켜야 할 역할을 살펴보며 기술 발전 속에서 인간의 노동과 삶을 함께 생각하게 하는 기사임.",
-                    "category": "IT 과학",
-                }],
-            }
-            for cat, rows in verified_today.items():
-                candidates[cat].extend(rows)
 
         categories = deduplicate_across_categories(candidates)
         # Do not publish general stories without a verified direct Naver News article URL.
         for rows in categories.values():
             for row in rows:
-                if not re.search(r"(?:^|//)(?:n\\.)?news\\.naver\\.com/article/", row.get("naverLink", "")):
+                if not re.search(r"(?:^|//)(?:n\.)?news\.naver\.com/article/", row.get("naverLink", "")):
                     row["naverLink"] = row.get("link", "")
         for name in categories:
             categories[name] = choose_diverse(categories[name], 10)
@@ -497,6 +474,17 @@ def main():
             "categories": categories,
             "popular": popular,
         }
+
+    yesterday = today.fromordinal(today.toordinal() - 1)
+    weekday_yesterday = weekday_ko[yesterday.weekday()]
+    all_days["yesterday"] = {
+        "date": yesterday.isoformat(),
+        "weekday": weekday_yesterday,
+        "label": "어제 · " + f"{yesterday.month}월 {yesterday.day}일 " + weekday_yesterday,
+        "total": 0,
+        "categories": {name: [] for name in FEEDS},
+        "popular": [],
+    }
 
     total = sum(day["total"] for day in all_days.values())
     result = {
