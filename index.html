@@ -35,9 +35,18 @@ async function load(){
   $("#count").textContent="오늘 뉴스 확인 중";
   $("#feed").innerHTML='<div class="empty">오늘의 뉴스를 불러오고 있어요…</div>';
   try{
-    const response=await fetch("./news.json?v="+Date.now(),{cache:"no-store"});
-    if(!response.ok)throw new Error("뉴스 파일 응답 오류 ("+response.status+")");
-    const data=await response.json();
+    let response;
+    let data;
+    let lastError;
+    for(const url of ["./news.json?v="+Date.now(),"https://raw.githubusercontent.com/poppyred22/the-daily-news/main/news.json?v="+Date.now()]){
+      try{
+        response=await fetch(url,{cache:"no-store"});
+        if(!response.ok)throw new Error("뉴스 파일 응답 오류 ("+response.status+")");
+        data=await response.json();
+        break;
+      }catch(err){lastError=err;}
+    }
+    if(!data)throw lastError||new Error("뉴스 데이터를 찾을 수 없어요.");
     if(data.date!==todayKey){
       window.dailyLoading=false;
       $("#count").textContent="오늘 뉴스 업데이트 대기 중";
@@ -53,7 +62,7 @@ async function load(){
   }catch(error){
     window.dailyLoading=false;
     $("#count").textContent="뉴스 연결 오류";
-    $("#feed").innerHTML='<div class="empty">오늘의 뉴스 데이터를 불러오지 못했어요.<br>잠시 후 다시 시도해 주세요.</div>';
+    $("#feed").innerHTML='<div class="empty">오늘의 뉴스 데이터를 불러오지 못했어요.<br>'+esc(error?.message||"연결 오류")+'</div>';
     console.error("Daily News load failed:",error);
   }
 }
