@@ -23,51 +23,51 @@ const $=s=>document.querySelector(s);
 $("#today").textContent=new Intl.DateTimeFormat("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"short"}).format(new Date());
 function drawTabs(){ $("#tabs").innerHTML=categories.map(([label,q])=>'<button class="'+(category===q?'active':'')+'" data-q="'+q+'">'+label+'</button>').join('')+'<button data-saved="1" class="'+(showSaved?'active':'')+'">★ 저장한 기사</button>'; }
 async function load(){
-  $("#feed").innerHTML='<div class="empty">국내 언론사 뉴스를 모으는 중…</div>';
+  $("#feed").innerHTML='<div class="empty">카테고리별 뉴스를 모으는 중…</div>';
   $("#count").textContent="뉴스 연결 확인 중";
   const feeds={
-    "":[["연합뉴스","https://www.yna.co.kr/rss/news.xml"],["경향신문","https://www.khan.co.kr/rss/rssdata/total_news.xml"],["한겨레","https://www.hani.co.kr/rss/"],["동아일보","https://rss.donga.com/total.xml"],["SBS","https://news.sbs.co.kr/news/newsflashRssFeed.do"]],
     "사회":[["경향신문","https://www.khan.co.kr/rss/rssdata/society_news.xml"],["뉴시스","https://www.newsis.com/RSS/society.xml"],["SBS","https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=03&plink=RSSREADER"]],
     "생활 문화":[["경향신문","https://www.khan.co.kr/rss/rssdata/culture_news.xml"],["뉴시스","https://www.newsis.com/RSS/culture.xml"],["SBS","https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=08&plink=RSSREADER"]],
     "사건 사고":[["연합뉴스","https://www.yna.co.kr/rss/news.xml"],["뉴시스","https://www.newsis.com/RSS/sokbo.xml"],["SBS","https://news.sbs.co.kr/news/newsflashRssFeed.do"]],
-    "세계":[["경향신문","https://www.khan.co.kr/rss/rssdata/kh_world.xml"],["뉴시스","https://www.newsis.com/RSS/international.xml"],["연합뉴스","https://www.yna.co.kr/rss/news.xml"]],
+    "세계":[["경향신문","https://www.khan.co.kr/rss/rssdata/kh_world.xml"],["뉴시스","https://www.newsis.com/RSS/international.xml"]],
     "IT 과학":[["경향신문","https://www.khan.co.kr/rss/rssdata/science_news.xml"],["IT동아","https://it.donga.com/feeds/rss/"],["전자신문","https://rss.etnews.com/Section901.xml"],["지디넷코리아","https://feeds.feedburner.com/zdkorea"]]
   };
-  const chosen=feeds[category]||feeds[""];
-  const results=await Promise.allSettled(chosen.map(async ([source,url])=>{
-    const response=await fetch("https://proxy.cors.dev/"+url,{credentials:"omit",cache:"no-store"});
-    if(!response.ok) throw Error(source+" HTTP "+response.status+(response.headers.get("X-Cors-Error")?" / "+response.headers.get("X-Cors-Error"):""));
-    const xml=new DOMParser().parseFromString(await response.text(),"application/xml");
-    if(xml.querySelector("parsererror")) throw Error(source+" XML 형식 오류");
-    let nodes=[...xml.getElementsByTagName("item")];
-    const atom=nodes.length===0;
-    if(atom) nodes=[...xml.getElementsByTagName("entry")];
-    return nodes.map(node=>{
-      const pick=(names)=>{for(const name of names){const el=[...node.getElementsByTagName("*")].find(n=>n.localName===name);if(el)return el.textContent||"";}return "";};
-      const linkEl=[...node.getElementsByTagName("*")].find(n=>n.localName==="link");
-      const link=atom?(linkEl?.getAttribute("href")||linkEl?.textContent||""):(linkEl?.textContent||"");
-      return {title:pick(["title"]).trim(),link:link.trim(),pubDate:pick(["pubDate","published","updated"]),author:source,description:pick(["description","summary","content","encoded"])};
-    }).filter(x=>x.title&&x.link);
-  }));
-  const failed=results.filter(r=>r.status==="rejected").map(r=>r.reason?.message||"피드 오류");
-  let seen=new Set();
-  const all=results.filter(r=>r.status==="fulfilled").flatMap(r=>r.value).filter(x=>{
-    const k=x.title.replace(/\\s+/g,"").toLowerCase();
-    if(!k||seen.has(k))return false;
-    seen.add(k);return true;
-  });
   const todayKey=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
-  items=all.filter(x=>{
-    const d=new Date(x.pubDate);
-    return !isNaN(d.getTime())&&new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(d)===todayKey;
-  }).sort((a,b)=>new Date(b.pubDate)-new Date(a.pubDate)).slice(0,10);
-  if(!items.length){
-    $("#feed").innerHTML='<div class="empty">오늘 날짜로 확인되는 기사가 없어요.<br><small>'+(failed.length?esc(failed.join(" · ")):"피드에 오늘자 기사가 아직 없습니다")+'</small><br>오래된 기사 대신 오늘 기사만 보여주도록 설정했어요.</div>';
-    $("#count").textContent="오늘 기사 0개";
-    return;
+  const seenTitles=new Set(),seenLinks=new Set(),categoryItems={};
+  let failures=[];
+  for(const [cat, sources] of Object.entries(feeds)){
+    const results=await Promise.allSettled(sources.map(async ([source,url])=>{
+      const response=await fetch("https://proxy.cors.dev/"+url,{credentials:"omit",cache:"no-store"});
+      if(!response.ok) throw Error(source+" HTTP "+response.status);
+      const xml=new DOMParser().parseFromString(await response.text(),"application/xml");
+      if(xml.querySelector("parsererror")) throw Error(source+" XML 오류");
+      let nodes=[...xml.getElementsByTagName("item")];
+      const atom=nodes.length===0;
+      if(atom) nodes=[...xml.getElementsByTagName("entry")];
+      return nodes.map(node=>{
+        const pick=names=>{for(const name of names){const el=[...node.getElementsByTagName("*")].find(n=>n.localName===name);if(el)return el.textContent||"";}return "";};
+        const linkEl=[...node.getElementsByTagName("*")].find(n=>n.localName==="link");
+        const link=atom?(linkEl?.getAttribute("href")||linkEl?.textContent||""):(linkEl?.textContent||"");
+        return {title:pick(["title"]).trim(),link:link.trim(),pubDate:pick(["pubDate","published","updated"]),author:source,description:pick(["description","summary","content","encoded"]),category:cat};
+      }).filter(x=>x.title&&x.link);
+    }));
+    failures.push(...results.filter(r=>r.status==="rejected").map(r=>r.reason?.message||"피드 오류"));
+    const rows=results.filter(r=>r.status==="fulfilled").flatMap(r=>r.value).filter(x=>{
+      const d=new Date(x.pubDate);
+      if(isNaN(d.getTime())||new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(d)!==todayKey)return false;
+      const titleKey=x.title.toLowerCase().replace(/\s+/g,"").replace(/[“”‘’"'.,!?·:()[\]{}]/g,"");
+      let linkKey=x.link.split("?")[0].replace(/\/$/,"");
+      if(seenTitles.has(titleKey)||seenLinks.has(linkKey))return false;
+      seenTitles.add(titleKey);seenLinks.add(linkKey);return true;
+    }).sort((a,b)=>new Date(b.pubDate)-new Date(a.pubDate)).slice(0,10);
+    categoryItems[cat]=rows;
   }
+  items=category===""?Object.values(categoryItems).flat().sort((a,b)=>new Date(b.pubDate)-new Date(a.pubDate)):categoryItems[category]||[];
+  window.dailyCategoryItems=categoryItems;
   render();
-  if(failed.length) $("#count").textContent=items.length+"개 · 일부 매체 연결 실패";
+  const total=items.length;
+  $("#count").textContent=total+"개 · "+(category===""?"전체 카테고리":"오늘 기사");
+  if(failures.length) $("#count").textContent+=" · 일부 매체 연결 실패";
 }
 function pickScore(x){
   const t=((x.title||"")+" "+(x.description||"")).toLowerCase();
