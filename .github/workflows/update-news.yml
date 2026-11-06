@@ -1,0 +1,59 @@
+name: Refresh Daily News
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "scripts/update_news.py"
+      - ".github/workflows/update-news.yml"
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: daily-news-pages
+  cancel-in-progress: true
+
+jobs:
+  refresh-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch and filter today's news
+        run: python scripts/update_news.py
+
+      - name: Show published news counts
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open("news.json", encoding="utf-8"))
+          print("Date:", data["date"])
+          print("Total:", data["total"])
+          for name, rows in data["categories"].items():
+              print(f"{name}: {len(rows)}")
+          PY
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload static site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
