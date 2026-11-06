@@ -819,10 +819,11 @@ def main():
 
         for name in categories:
             for row in categories[name]:
-                if len((row.get("description") or "").strip()) < 70:
+                desc = clean_text(row.get("description") or "")
+                if (len(desc) < 70 or "기사에서 관련 배경과 주요 내용을 확인할 수 있습니다" in desc
+                        or title_similarity(desc, row.get("title", "")) > 0.78):
                     row["description"] = fallback_summary(row) or (
-                        clean_text(row.get("description") or "") or
-                        f"{clean_text(row.get('title', '이 기사'))}. 기사에서 관련 배경과 주요 내용을 확인할 수 있습니다."
+                        desc or f"{clean_text(row.get('title', '이 기사'))}. 기사에서 관련 배경과 주요 내용을 확인할 수 있습니다."
                     )
 
         total = sum(len(rows) for rows in categories.values())
