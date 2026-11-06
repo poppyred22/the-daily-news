@@ -152,10 +152,10 @@ def main():
         output.write(payload)
     with open("index.html", "r", encoding="utf-8") as source:
         page = source.read()
-    marker = "window.NEWS_DATA = null; // UPDATED_AUTOMATICALLY_BY_NEWS_WORKFLOW"
-    if marker not in page:
+    marker = re.compile(r"window\\.NEWS_DATA\\s*=\\s*.*?;\\s*// UPDATED_AUTOMATICALLY_BY_NEWS_WORKFLOW")
+    if not marker.search(page):
         raise SystemExit("NEWS_DATA marker not found in index.html")
-    page = page.replace(marker, "window.NEWS_DATA = " + payload + "; // UPDATED_AUTOMATICALLY_BY_NEWS_WORKFLOW")
+    page = marker.sub(lambda _: "window.NEWS_DATA = " + payload + "; // UPDATED_AUTOMATICALLY_BY_NEWS_WORKFLOW", page, count=1)
     with open("index.html", "w", encoding="utf-8") as output:
         output.write(page)
     print("NEWS_DATE=" + TODAY)
