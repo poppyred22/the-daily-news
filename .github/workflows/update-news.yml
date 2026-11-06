@@ -55,6 +55,12 @@ jobs:
           git add index.html news.json
           if ! git diff --cached --quiet; then
             git commit -m "Refresh today's news data"
-            git push
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git checkout --theirs index.html news.json
+              git add index.html news.json
+              GIT_EDITOR=true git rebase --continue
+            fi
+            git push origin HEAD:main
           fi
 
