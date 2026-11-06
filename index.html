@@ -59,10 +59,12 @@ async function load(){
   const seenTitles=new Set(),seenLinks=new Set();
   const tasks=Object.entries(feeds).flatMap(([cat,sources])=>sources.map(([source,url])=>({cat,source,url})));
   let finished=0,failures=0,total=0;
+  window.dailyLoading=true;
   const updateView=()=>{
     for(const cat of Object.keys(categoryItems))categoryItems[cat].sort((a,b)=>new Date(b.pubDate)-new Date(a.pubDate));
     for(const cat of Object.keys(categoryItems))categoryItems[cat]=categoryItems[cat].slice(0,10);
     window.dailyCategoryItems=categoryItems;
+    window.dailyLoading=finished<tasks.length;
     items=category===""?Object.values(categoryItems).flat().sort((a,b)=>new Date(b.pubDate)-new Date(a.pubDate)):categoryItems[category]||[];
     if(total>0){
       try{localStorage.setItem(cacheKey,JSON.stringify(categoryItems));}catch(e){}
@@ -116,6 +118,7 @@ async function load(){
     }
   });
   await Promise.allSettled(jobs);
+  window.dailyLoading=false;
   if(total===0){
     $("#count").textContent="오늘 기사 0개 · "+failures+"개 피드 연결 실패";
     $("#feed").innerHTML='<div class="empty">뉴스 서버에서 기사를 가져오지 못했어요.<br>잠시 후 새로고침을 눌러 주세요.</div>';
@@ -163,7 +166,7 @@ function render(){
   }
   const total=picks.length+rest.length;
   $("#count").textContent=total+"개 · 오늘 기사";
-  if(!total){$("#feed").innerHTML='<div class="empty">오늘 표시할 기사가 없어요.</div>';return;}
+  if(!total){$("#feed").innerHTML=window.dailyLoading?'<div class="empty">오늘의 뉴스를 모으고 있어요…<br>잠시만 기다려 주세요.</div>':'<div class="empty">오늘 표시할 기사가 없어요.</div>';return;}
   const renderStory=(p,i,featured)=>story(p.x,i,featured);
   window.renderedStories=[...picks,...rest].map(p=>p.x);
   const pickHeading=category===""?"오늘의 픽 · 전체 카테고리":"오늘의 픽";
