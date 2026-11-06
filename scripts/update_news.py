@@ -18,7 +18,7 @@ FEEDS = {
         ("연합뉴스", "https://www.yna.co.kr/rss/society.xml"),
         ("SBS", "https://news.sbs.co.kr/news/newsflashRssFeed.do"),
         ("매일신문", "https://www.imaeil.com/rss?cate=society"),
-            ],
+    ],
     "사회": [
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/society_news.xml"),
         ("뉴시스", "https://www.newsis.com/RSS/society.xml"),
@@ -35,7 +35,7 @@ FEEDS = {
         ("매일신문", "https://www.imaeil.com/rss?cate=society"),
         ("매일경제", "https://www.mk.co.kr/rss/60000007/"),
         ("매일경제", "https://www.mk.co.kr/rss/50400012/"),
-        ("한겨레", "http://www.hani.co.kr/rss/"),
+
     ],
     "세계": [
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/kh_world.xml"),
