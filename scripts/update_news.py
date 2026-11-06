@@ -557,8 +557,19 @@ def choose_diverse(rows, limit=10):
     return sorted(chosen[:limit], key=lambda row: row["pubDate"], reverse=True)
 
 def main():
-    # Build with the current Asia/Seoul date so the homepage never rejects stale data.
-    today = datetime.now(KST).date()
+    # Keep a deliberately prepared next-day homepage date when it is ahead
+    # of the runner's clock (for example, before the scheduled 10:00 KST refresh).
+    now = datetime.now(KST)
+    today = now.date()
+    previous_data = {}
+    try:
+        with open("news.json", "r", encoding="utf-8") as saved:
+            previous_data = json.load(saved)
+        saved_date = datetime.fromisoformat(previous_data.get("date", "")).date()
+        if saved_date > today:
+            today = saved_date
+    except Exception:
+        pass
     yesterday = today.fromordinal(today.toordinal() - 1)
     targets = [
         ("today", today),
@@ -690,6 +701,13 @@ def main():
             "categories": categories,
             "popular": popular,
         }
+
+    # Preserve the already published archive for the immediately previous day.
+    # A short or temporarily unavailable RSS response must not erase that archive.
+    saved_yesterday = (previous_data.get("days") or {}).get("yesterday")
+    if (saved_yesterday and saved_yesterday.get("date") == yesterday.isoformat()
+            and saved_yesterday.get("total", 0) > all_days.get("yesterday", {}).get("total", 0)):
+        all_days["yesterday"] = saved_yesterday
 
     total = sum(day["total"] for day in all_days.values())
     result = {
