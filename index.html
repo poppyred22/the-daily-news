@@ -72,9 +72,7 @@ function makeEasySummary(raw){
   }).join("\n");
 }
 function naverNewsUrl(x){
-  const link=String(x.link||"");
-  if(/(^|\.)news\.naver\.com\//i.test(link)) return link;
-  return "https://search.naver.com/search.naver?where=news&query="+encodeURIComponent(x.title||"");
+  return String(x.naverLink||x.link||"");
 }
 function story(x,i,featured){
   const when=x.pubDate?new Date(x.pubDate):null;
@@ -85,7 +83,7 @@ function story(x,i,featured){
   const categoryLabel=esc(x.category||"");
   const href=attr(naverNewsUrl(x));
   const expanded=window.openStoryLink===x.link;
-  return '<article class="story"><div class="storytop"><span class="source">'+author+'</span><span>'+dateText+'</span></div><button class="story-title" type="button" data-open="'+i+'" aria-expanded="'+(expanded?'true':'false')+'">'+title+'</button>'+(expanded?'<div class="story-detail"><p class="detail-summary">'+description+'</p><a class="original-link" href="'+href+'" target="_blank" rel="noopener noreferrer">네이버뉴스에서 기사 보기 ↗</a></div>':'')+'<div class="storybottom"><span>'+categoryLabel+'</span><button class="save" type="button" data-save="'+i+'" aria-label="기사 저장">☆</button></div></article>';
+  return '<article class="story"><div class="storytop"><span class="source">'+author+'</span><span>'+dateText+'</span></div><button class="story-title" type="button" data-open="'+i+'" aria-expanded="'+(expanded?'true':'false')+'">'+title+'</button>'+(expanded?'<div class="story-detail"><p class="detail-summary">'+description+'</p><a class="original-link" href="'+href+'" target="_blank" rel="noopener noreferrer">'+(x.naverLink||String(x.link||"").includes("news.naver.com/")?"네이버뉴스에서 기사 보기 ↗":"원문 기사 보기 ↗")+'</a></div>':'')+'<div class="storybottom"><span>'+categoryLabel+'</span><button class="save" type="button" data-save="'+i+'" aria-label="기사 저장">☆</button></div></article>';
 }
 function favoritePreferenceScore(x,category){
   if(!Array.isArray(saved)||!saved.length) return 0;
