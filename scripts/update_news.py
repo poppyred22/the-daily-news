@@ -219,12 +219,7 @@ def fetch_naver_description(url):
         parser.feed(payload.decode("utf-8", errors="replace"))
         meta = clean_text(parser.meta_description)
         body = clean_text(" ".join(parser.article_parts))
-        if not meta or len(meta) < 70 or title_similarity(meta, "") > 2:
-            text = body or meta
-        else:
-            text = meta
-        if body and (len(meta) < 70 or re.sub(r"[^가-힣a-z0-9]", "", meta.lower()) in re.sub(r"[^가-힣a-z0-9]", "", (row_title := "") .lower())):
-            text = body
+        text = body if len(body) >= 70 else meta
         text = re.sub(r"\s*(무단전재|재배포 금지|저작권자).*$", "", text)
         return text[:1200].strip()
     except Exception:
