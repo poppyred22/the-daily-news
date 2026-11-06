@@ -45,8 +45,10 @@ jobs:
           data = json.load(open("news.json", encoding="utf-8"))
           print("Date:", data["date"])
           print("Total:", data["total"])
-          for name, rows in data["categories"].items():
-              print(f"{name}: {len(rows)}")
+          for day_key, day in data["days"].items():
+              print(f'{day["label"]}: {day["total"]}')
+              for name, rows in day["categories"].items():
+                  print(f"  {name}: {len(rows)}")
           PY
 
       - name: Commit refreshed news data for fallback access
