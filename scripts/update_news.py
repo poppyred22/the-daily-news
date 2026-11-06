@@ -475,20 +475,27 @@ def resolve_naver_article(title):
         return ""
 
 def attach_naver_links(categories):
-    # Resolve each unique headline once; never invent a Naver article URL.
+    # Resolve distinct publisher headlines concurrently; only keep verified Naver URLs.
     cache = {}
+    titles = set()
     for rows in categories.values():
         for row in rows:
             original = row.get("link", "")
             if "news.naver.com/" in original or "n.news.naver.com/" in original:
                 row["naverLink"] = original
-                continue
-            title = row.get("title", "")
-            if title not in cache:
-                cache[title] = resolve_naver_article(title)
-                time.sleep(0.08)
-            if cache[title]:
-                row["naverLink"] = cache[title]
+            elif row.get("title"):
+                titles.add(row["title"])
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        futures = {title: pool.submit(resolve_naver_article, title) for title in titles}
+        for title, future in futures.items():
+            try:
+                cache[title] = future.result()
+            except Exception:
+                cache[title] = ""
+    for rows in categories.values():
+        for row in rows:
+            if not row.get("naverLink"):
+                row["naverLink"] = cache.get(row.get("title", ""), "")
     return categories
 
 def title_similarity(a, b):
