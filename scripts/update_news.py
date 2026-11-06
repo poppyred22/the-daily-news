@@ -221,11 +221,6 @@ def fetch_naver_description(url):
 
 def enrich_descriptions(rows):
     # Fetch missing summaries concurrently so the daily update does not stall.
-    pending = {
-        pool.submit(fetch_naver_description, row.get("naverLink") or row.get("link", "")): row
-        for row in rows
-        if len((row.get("description") or "").strip()) < 70
-    }
     with ThreadPoolExecutor(max_workers=8) as pool:
         pending = {
             pool.submit(fetch_naver_description, row.get("naverLink") or row.get("link", "")): row
