@@ -358,6 +358,7 @@ def main():
             "label": ("오늘" if day_key == "today" else "어제") + " · " + f"{day_value.month}월 {day_value.day}일 " + weekday_ko[day_value.weekday()],
             "total": total,
             "categories": categories,
+            "popular": popular,
         }
 
     total = sum(day["total"] for day in all_days.values())
