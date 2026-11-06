@@ -49,6 +49,16 @@ async function load(){
   const total=Object.values(window.dailyCategoryItems).reduce((sum,rows)=>sum+(rows||[]).length,0);
   $("#count").textContent=total+"개 · 오늘 기사 · "+(data.generatedAt||"").replace("T"," ").slice(0,16)+" 기준";
 }
+function story(x,i,featured){
+  const when=x.pubDate?new Date(x.pubDate):null;
+  const dateText=when&&!Number.isNaN(when.getTime())?new Intl.DateTimeFormat("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(when):"";
+  const title=esc(x.title||"제목 없음");
+  const description=esc(x.description||"");
+  const author=esc(x.author||"뉴스");
+  const categoryLabel=esc(x.category||"");
+  const href=attr(x.link||"#");
+  return '<article class="story"><div class="storytop"><span class="source">'+author+'</span><span>'+dateText+'</span></div><a href="'+href+'" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none"><h2>'+title+'</h2>'+(description?'<p class="desc">'+description+'</p>':'')+'</a><div class="storybottom"><span>'+categoryLabel+'</span><button class="save" type="button" data-save="'+i+'" aria-label="기사 저장">☆</button></div></article>';
+}
 function pickScore(x){
   const t=((x.title||"")+" "+(x.description||"")).toLowerCase();
   const signals=[
