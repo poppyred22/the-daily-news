@@ -168,6 +168,65 @@ def article_score(category, row):
     return score
 
 
+
+class NaverArticleTextParser(HTMLParser):
+    """Extract the article lead/description from a Naver News article page."""
+    def __init__(self):
+        super().__init__()
+        self.meta_description = ""
+        self.capture_depth = 0
+        self.article_parts = []
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "meta":
+            key = (attrs.get("property") or attrs.get("name") or "").lower()
+            if key in ("og:description", "description", "twitter:description") and not self.meta_description:
+                self.meta_description = clean_text(attrs.get("content", ""))
+        ident = (attrs.get("id") or "").lower()
+        classes = (attrs.get("class") or "").lower()
+        if not self.capture_depth and (ident in ("dic_area", "newsct_article", "articebody", "articlebody") or "go_trans _article_content" in classes):
+            self.capture_depth = 1
+        elif self.capture_depth and tag not in ("br", "img", "hr", "meta", "link", "input"):
+            self.capture_depth += 1
+    def handle_endtag(self, tag):
+        if self.capture_depth:
+            self.capture_depth -= 1
+    def handle_data(self, data):
+        if self.capture_depth:
+            value = clean_text(data)
+            if value:
+                self.article_parts.append(value)
+
+def fetch_naver_description(url):
+    if not url or "news.naver.com/" not in url:
+        return ""
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+        "Referer": "https://news.naver.com/",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=5) as response:
+            payload = response.read(900 * 1024 + 1)
+        if len(payload) > 900 * 1024:
+            return ""
+        parser = NaverArticleTextParser()
+        parser.feed(payload.decode("utf-8", errors="replace"))
+        text = parser.meta_description or " ".join(parser.article_parts)
+        text = re.sub(r"\s+", " ", clean_text(text))
+        text = re.sub(r"\s*(무단전재|재배포 금지|저작권자).*$", "", text)
+        return text[:1200].strip()
+    except Exception:
+        return ""
+
+def enrich_descriptions(rows):
+    for row in rows:
+        if len((row.get("description") or "").strip()) < 70:
+            summary = fetch_naver_description(row.get("naverLink") or row.get("link", ""))
+            if len(summary) > len((row.get("description") or "").strip()):
+                row["description"] = summary
+            time.sleep(0.04)
+    return rows
+
 class NaverRankingParser(HTMLParser):
     def __init__(self):
         super().__init__()
