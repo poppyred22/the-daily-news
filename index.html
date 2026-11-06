@@ -10,7 +10,7 @@ header{max-width:760px;margin:auto;padding:30px 20px 18px}.top{display:flex;just
 h1{font-family:Georgia,serif;font-size:clamp(42px,11vw,68px);font-weight:400;letter-spacing:-3px;margin:25px 0 4px}.sub{font-size:12px;color:var(--muted);letter-spacing:.4px}
 main{max-width:760px;margin:auto;padding:0 20px 60px}.tools{display:flex;gap:8px;margin:22px 0 16px}.search{flex:1;min-width:0;border:1px solid var(--line);background:white;border-radius:9px;padding:13px;font-size:14px;outline:none}.btn{border:1px solid var(--line);background:white;border-radius:9px;padding:0 14px;font-size:12px;cursor:pointer}.btn.active{background:var(--accent);border-color:var(--accent)}
 nav{display:flex;gap:7px;overflow:auto;padding:3px 0 15px;scrollbar-width:none}nav button{white-space:nowrap;border:0;background:transparent;padding:9px 13px;border-radius:20px;color:#777;font-size:12px;cursor:pointer}nav button.active{background:#202020;color:white}
-.meta{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--ink);padding:13px 0;font-size:11px;color:var(--muted)}.story{display:block;padding:19px 0;border-bottom:1px solid var(--line);text-decoration:none;color:inherit}.storytop{display:flex;justify-content:space-between;gap:12px;font-size:10px;color:var(--muted);margin-bottom:9px}.source{font-weight:700;color:#555}.story h2{font-size:18px;line-height:1.45;letter-spacing:-.5px;margin:0 0 8px;font-weight:700}.desc{font-size:13px;line-height:1.65;color:#666;margin:0 0 10px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.storybottom{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#999}.save{border:0;background:transparent;font-size:19px;padding:2px 4px;cursor:pointer;color:#888}.save.on{color:#111}.empty{text-align:center;padding:60px 10px;color:#888;font-size:13px;line-height:1.8}.foot{padding:28px 0;color:#aaa;font-size:10px;text-align:center}
+.meta{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--ink);padding:13px 0;font-size:11px;color:var(--muted)}.sectionhead{display:flex;align-items:center;gap:9px;margin:23px 0 5px}.sectionhead strong{font-size:16px;letter-spacing:-.4px}.sectionhead span{font-size:10px;color:#888}.featured{background:#fff;border:1px solid #ecece5;border-radius:13px;padding:0 16px;margin:10px 0 22px}.featured .story{padding:17px 0}.featured .story h2{font-size:19px}.picktag{display:inline-block;background:var(--accent);color:#202020;border-radius:4px;padding:4px 7px;font-size:9px;font-weight:800;letter-spacing:.4px;margin-bottom:8px}.restlist .story{padding:16px 0}.restlist .story h2{font-size:16px}.sectionrule{border:0;border-top:1px solid var(--line);margin:24px 0 0}.story{display:block;padding:19px 0;border-bottom:1px solid var(--line);text-decoration:none;color:inherit}.storytop{display:flex;justify-content:space-between;gap:12px;font-size:10px;color:var(--muted);margin-bottom:9px}.source{font-weight:700;color:#555}.story h2{font-size:18px;line-height:1.45;letter-spacing:-.5px;margin:0 0 8px;font-weight:700}.desc{font-size:13px;line-height:1.65;color:#666;margin:0 0 10px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.storybottom{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#999}.save{border:0;background:transparent;font-size:19px;padding:2px 4px;cursor:pointer;color:#888}.save.on{color:#111}.empty{text-align:center;padding:60px 10px;color:#888;font-size:13px;line-height:1.8}.foot{padding:28px 0;color:#aaa;font-size:10px;text-align:center}
 </style></head>
 <body>
 <header><div class="top"><div class="brand">THE DAILY NEWS</div><div class="date" id="today"></div></div><h1>Daily<br>Brief.</h1><div class="sub">오늘의 뉴스를 가볍고 빠르게 읽는 나만의 브리핑</div></header>
@@ -51,20 +51,51 @@ async function load(){
   }));
   const failed=results.filter(r=>r.status==="rejected").map(r=>r.reason?.message||"피드 오류");
   let seen=new Set();
-  items=results.filter(r=>r.status==="fulfilled").flatMap(r=>r.value).filter(x=>{
-    const k=x.title.replace(/\s+/g,"").toLowerCase();
+  const all=results.filter(r=>r.status==="fulfilled").flatMap(r=>r.value).filter(x=>{
+    const k=x.title.replace(/\\s+/g,"").toLowerCase();
     if(!k||seen.has(k))return false;
     seen.add(k);return true;
-  }).sort((a,b)=>new Date(b.pubDate||0)-new Date(a.pubDate||0));
+  });
+  const todayKey=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  items=all.filter(x=>{
+    const d=new Date(x.pubDate);
+    return !isNaN(d.getTime())&&new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(d)===todayKey;
+  }).sort((a,b)=>new Date(b.pubDate)-new Date(a.pubDate)).slice(0,10);
   if(!items.length){
-    $("#feed").innerHTML='<div class="empty">뉴스를 가져오지 못했어요.<br><small>'+esc(failed.join(" · ")||"RSS에 기사가 없습니다")+'</small><br>잠시 후 새로고침해 주세요.</div>';
-    $("#count").textContent="연결된 뉴스 피드 0개";
+    $("#feed").innerHTML='<div class="empty">오늘 날짜로 확인되는 기사가 없어요.<br><small>'+(failed.length?esc(failed.join(" · ")):"피드에 오늘자 기사가 아직 없습니다")+'</small><br>오래된 기사 대신 오늘 기사만 보여주도록 설정했어요.</div>';
+    $("#count").textContent="오늘 기사 0개";
     return;
   }
   render();
-  if(failed.length) $("#count").textContent=items.length+"개의 기사 · 일부 매체 연결 실패";
+  if(failed.length) $("#count").textContent=items.length+"개 · 일부 매체 연결 실패";
 }
-function render(){let q=$("#search").value.trim().toLowerCase();let list=(showSaved?saved.map(s=>s):items).filter(x=>!q||((x.title||"")+" "+(x.description||"")+" "+(x.author||"")).toLowerCase().includes(q));$("#count").textContent=list.length+"개의 기사";$("#feed").innerHTML=list.length?list.map((x,i)=>{let link=x.link||"#";let date=x.pubDate?new Date(x.pubDate).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):"";let desc=(x.description||"").replace(/<[^>]*>/g," ").replace(/&nbsp;/g," ").trim();let is=saved.some(s=>s.link===x.link);return '<article class="story"><div class="storytop"><span class="source">'+esc(x.author||"뉴스")+'</span><span>'+date+'</span></div><h2>'+esc(x.title||"제목 없음")+'</h2><p class="desc">'+esc(desc||"기사 원문에서 자세한 내용을 확인할 수 있습니다.")+'</p><div class="storybottom"><a href="'+attr(link)+'" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">기사 원문 읽기 ↗</a><button class="save '+(is?'on':'')+'" data-save="'+i+'" aria-label="저장">'+(is?"★":"☆")+'</button></div></article>'}).join(""):'<div class="empty">표시할 기사가 없어요.</div>';}
+function pickScore(x){
+  const t=((x.title||"")+" "+(x.description||"")).toLowerCase();
+  const signals=[
+    ["세계 최초|최초 공개|처음으로|이례적|전례 없는|기록 경신|신기록",5],
+    ["기적|감동|재회|구조|구하다|살렸다|선행|나눔|헌신|가족",4],
+    ["뜻밖|반전|놀라운|신기한|희귀|이색|화제|눈길|특별한|정체",3],
+    ["발견|발명|새로운 종|미스터리|수수께끼|우주|심해|고대",3],
+    ["논란|충격|분노|참사|사고|범죄|피해|속보",1]
+  ];
+  let score=0;
+  for(const [words,points] of signals) if(new RegExp(words,"i").test(t)) score+=points;
+  if((x.description||"").length>90) score+=1;
+  return score;
+}
+function render(){
+  const q=$("#search").value.trim().toLowerCase();
+  const list=(showSaved?saved.map(s=>s):items).filter(x=>!q||((x.title||"")+" "+(x.description||"")+" "+(x.author||"")).toLowerCase().includes(q));
+  $("#count").textContent=list.length+"개의 기사";
+  if(!list.length){$("#feed").innerHTML='<div class="empty">오늘 표시할 기사가 없어요.</div>';return;}
+  const story=(x,i,featured)=>{let link=x.link||"#";let date=x.pubDate?new Date(x.pubDate).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):"";let desc=(x.description||"").replace(/<[^>]*>/g," ").replace(/&nbsp;/g," ").trim();let is=saved.some(s=>s.link===x.link);return '<article class="story"><div class="storytop"><span class="source">'+esc(x.author||"뉴스")+'</span><span>'+date+'</span></div>'+(featured?'<div class="picktag">TODAY’S PICK</div>':'')+'<h2>'+esc(x.title||"제목 없음")+'</h2><p class="desc">'+esc(desc||"기사 원문에서 자세한 내용을 확인할 수 있습니다.")+'</p><div class="storybottom"><a href="'+attr(link)+'" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">기사 원문 읽기 ↗</a><button class="save '+(is?'on':'')+'" data-save="'+i+'" aria-label="저장">'+(is?"★":"☆")+'</button></div></article>'};
+  if(showSaved){$("#feed").innerHTML='<div class="restlist">'+list.map((x,i)=>story(x,i,false)).join("")+'</div>';return;}
+  const ranked=list.map((x,i)=>({x,i,score:pickScore(x)})).sort((a,b)=>b.score-a.score||new Date(b.x.pubDate)-new Date(a.x.pubDate));
+  const picks=ranked.slice(0,Math.min(3,ranked.length)).sort((a,b)=>new Date(b.x.pubDate)-new Date(a.x.pubDate));
+  const pickSet=new Set(picks.map(p=>p.i));
+  const rest=list.map((x,i)=>({x,i})).filter(p=>!pickSet.has(p.i));
+  $("#feed").innerHTML='<div class="sectionhead"><strong>오늘의 기사</strong><span>눈길을 끄는 이야기 3</span></div><div class="featured">'+picks.map(p=>story(p.x,p.i,true)).join("")+'</div>'+(rest.length?'<hr class="sectionrule"><div class="sectionhead"><strong>오늘의 뉴스</strong><span>최신 기사 '+rest.length+'개</span></div><div class="restlist">'+rest.map(p=>story(p.x,p.i,false)).join("")+'</div>':'');
+}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}function attr(s){return esc(s)}
 $("#tabs").addEventListener("click",e=>{let b=e.target.closest("button");if(!b)return;if(b.dataset.saved){showSaved=!showSaved;drawTabs();render();return}category=b.dataset.q;showSaved=false;drawTabs();load()});
 $("#feed").addEventListener("click",e=>{let b=e.target.closest("[data-save]");if(!b)return;let list=(showSaved?saved:items).filter(x=>{let q=$("#search").value.trim().toLowerCase();return !q||((x.title||"")+" "+(x.description||"")).toLowerCase().includes(q)});let x=list[Number(b.dataset.save)];if(!x)return;let exists=saved.some(s=>s.link===x.link);saved=exists?saved.filter(s=>s.link!==x.link):[x,...saved];localStorage.setItem("tdn_saved",JSON.stringify(saved));render()});
