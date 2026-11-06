@@ -127,7 +127,7 @@ function render(){
         html+='<div class="categoryhead"><strong>'+esc(label)+'</strong><span>'+rows.length+'개</span></div>';
       }
       if(picks.length){
-        html+='<div class="sectionhead"><strong>오늘의 픽</strong><span>'+picks.length+'개</span></div><div class="featured">';
+        html+='<div class="sectionhead"><strong>'+(day.date===window.NEWS_DATA.date?'오늘의 픽':'어제의 픽')+'</strong><span>'+picks.length+'개</span></div><div class="featured">';
         for(const p of picks){const idx=rendered.push(p.x)-1;html+=story(p.x,idx,true);}
         html+='</div>';
       }
