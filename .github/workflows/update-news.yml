@@ -8,7 +8,7 @@ on:
       - "scripts/update_news.py"
       - ".github/workflows/update-news.yml"
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "0 1 * * *" # 10:00 KST
   workflow_dispatch:
 
 permissions:
