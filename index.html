@@ -85,16 +85,36 @@ function pickScore(x){
 }
 function render(){
   const q=$("#search").value.trim().toLowerCase();
-  const list=(showSaved?saved.map(s=>s):items).filter(x=>!q||((x.title||"")+" "+(x.description||"")+" "+(x.author||"")).toLowerCase().includes(q));
-  $("#count").textContent=list.length+"개의 기사";
-  if(!list.length){$("#feed").innerHTML='<div class="empty">오늘 표시할 기사가 없어요.</div>';return;}
-  const story=(x,i,featured)=>{let link=x.link||"#";let date=x.pubDate?new Date(x.pubDate).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):"";let desc=(x.description||"").replace(/<[^>]*>/g," ").replace(/&nbsp;/g," ").trim();let is=saved.some(s=>s.link===x.link);return '<article class="story"><div class="storytop"><span class="source">'+esc(x.author||"뉴스")+'</span><span>'+date+'</span></div>'+(featured?'<div class="picktag">TODAY’S PICK</div>':'')+'<h2>'+esc(x.title||"제목 없음")+'</h2><p class="desc">'+esc(desc||"기사 원문에서 자세한 내용을 확인할 수 있습니다.")+'</p><div class="storybottom"><a href="'+attr(link)+'" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">기사 원문 읽기 ↗</a><button class="save '+(is?'on':'')+'" data-save="'+i+'" aria-label="저장">'+(is?"★":"☆")+'</button></div></article>'};
-  if(showSaved){$("#feed").innerHTML='<div class="restlist">'+list.map((x,i)=>story(x,i,false)).join("")+'</div>';return;}
-  const ranked=list.map((x,i)=>({x,i,score:pickScore(x)})).sort((a,b)=>b.score-a.score||new Date(b.x.pubDate)-new Date(a.x.pubDate));
-  const picks=ranked.slice(0,Math.min(3,ranked.length)).sort((a,b)=>new Date(b.x.pubDate)-new Date(a.x.pubDate));
-  const pickSet=new Set(picks.map(p=>p.i));
-  const rest=list.map((x,i)=>({x,i})).filter(p=>!pickSet.has(p.i));
-  $("#feed").innerHTML='<div class="sectionhead"><strong>오늘의 기사</strong><span>눈길을 끄는 이야기 3</span></div><div class="featured">'+picks.map(p=>story(p.x,p.i,true)).join("")+'</div>'+(rest.length?'<hr class="sectionrule"><div class="sectionhead"><strong>오늘의 뉴스</strong><span>최신 기사 '+rest.length+'개</span></div><div class="restlist">'+rest.map(p=>story(p.x,p.i,false)).join("")+'</div>':'');
+  const matches=x=>!q||((x.title||"")+" "+(x.description||"")+" "+(x.author||"")).toLowerCase().includes(q);
+  if(showSaved){
+    const list=saved.filter(matches);
+    $("#count").textContent=list.length+"개의 저장 기사";
+    $("#feed").innerHTML=list.length?'<div class="restlist">'+list.map((x,i)=>story(x,i,false)).join("")+'</div>':'<div class="empty">저장한 기사가 없어요.</div>';
+    return;
+  }
+  const categoryData=window.dailyCategoryItems||{};
+  let picks=[],rest=[];
+  if(category===""){
+    for(const [cat,rows] of Object.entries(categoryData)){
+      const ranked=rows.filter(matches).map((x,i)=>({x,score:pickScore(x)})).sort((a,b)=>b.score-a.score||new Date(b.x.pubDate)-new Date(a.x.pubDate));
+      picks.push(...ranked.slice(0,3).map(p=>({...p,category:cat})));
+      rest.push(...ranked.slice(3).map(p=>({...p,category:cat})));
+    }
+    picks.sort((a,b)=>new Date(b.x.pubDate)-new Date(a.x.pubDate));
+    rest.sort((a,b)=>new Date(b.x.pubDate)-new Date(a.x.pubDate));
+  }else{
+    const ranked=(categoryData[category]||[]).filter(matches).map(x=>({x,score:pickScore(x),category})).sort((a,b)=>b.score-a.score||new Date(b.x.pubDate)-new Date(a.x.pubDate));
+    picks=ranked.slice(0,3).sort((a,b)=>new Date(b.x.pubDate)-new Date(a.x.pubDate));
+    rest=ranked.slice(3).sort((a,b)=>new Date(b.x.pubDate)-new Date(a.x.pubDate));
+  }
+  const total=picks.length+rest.length;
+  $("#count").textContent=total+"개 · 오늘 기사";
+  if(!total){$("#feed").innerHTML='<div class="empty">오늘 표시할 기사가 없어요.</div>';return;}
+  const renderStory=(p,i,featured)=>story(p.x,i,featured);
+  const pickHeading=category===""?"오늘의 픽 · 전체 카테고리":"오늘의 픽";
+  const picksHtml=picks.length?'<div class="sectionhead"><strong>'+pickHeading+'</strong><span>'+picks.length+'개 · 카테고리별 3개</span></div><div class="featured">'+picks.map((p,i)=>'<div class="pick-category">'+(category===""?'<div style="font-size:10px;color:#888;font-weight:700;padding-top:13px">'+esc(categories.find(c=>c[1]===p.category)?.[0]||p.category)+'</div>':'')+renderStory(p,i,true)+'</div>').join("")+'</div>':'';
+  const restHtml=rest.length?'<hr class="sectionrule"><div class="sectionhead"><strong>나머지 기사</strong><span>최신순 '+rest.length+'개</span></div><div class="restlist">'+rest.map((p,i)=>renderStory(p,i,false)).join("")+'</div>':'';
+  $("#feed").innerHTML=pickHeading? picksHtml+restHtml:restHtml;
 }
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}function attr(s){return esc(s)}
 $("#tabs").addEventListener("click",e=>{let b=e.target.closest("button");if(!b)return;if(b.dataset.saved){showSaved=!showSaved;drawTabs();render();return}category=b.dataset.q;showSaved=false;drawTabs();load()});
