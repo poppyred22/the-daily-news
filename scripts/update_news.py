@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlencode
 from zoneinfo import ZoneInfo
 
 KST = ZoneInfo("Asia/Seoul")
@@ -221,6 +221,69 @@ def fetch_naver_popular(target_date):
             break
     return rows
 
+
+class NaverSearchParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.rows = []
+        self.current = None
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        href = attrs.get("href", "")
+        if tag == "a" and ("news.naver.com" in href or "n.news.naver.com" in href):
+            self.current = {"link": href, "title": ""}
+    def handle_data(self, data):
+        if self.current is not None:
+            self.current["title"] += data
+    def handle_endtag(self, tag):
+        if tag == "a" and self.current is not None:
+            row = {"link": self.current["link"].split("?")[0], "title": clean_text(self.current["title"])}
+            if row["title"] and re.search(r"news\\.naver\\.com/.+/(article|read)", row["link"]):
+                self.rows.append(row)
+            self.current = None
+
+def resolve_naver_article(title):
+    query = urlencode({"where": "news", "query": title})
+    url = "https://search.naver.com/search.naver?" + query
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36",
+        "Referer": "https://www.naver.com/",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=5) as response:
+            payload = response.read(2 * 1024 * 1024 + 1)
+        if len(payload) > 2 * 1024 * 1024:
+            return ""
+        parser = NaverSearchParser()
+        parser.feed(payload.decode("utf-8", errors="replace"))
+        target = re.sub(r"[^가-힣a-z0-9]", "", title.lower())
+        best_link, best_ratio = "", 0.0
+        for row in parser.rows:
+            candidate = re.sub(r"[^가-힣a-z0-9]", "", row["title"].lower())
+            ratio = difflib.SequenceMatcher(None, target, candidate).ratio()
+            if ratio > best_ratio:
+                best_link, best_ratio = row["link"], ratio
+        return best_link if best_ratio >= 0.62 else ""
+    except Exception:
+        return ""
+
+def attach_naver_links(categories):
+    # Resolve each unique headline once; never invent a Naver article URL.
+    cache = {}
+    for rows in categories.values():
+        for row in rows:
+            original = row.get("link", "")
+            if "news.naver.com/" in original or "n.news.naver.com/" in original:
+                row["naverLink"] = original
+                continue
+            title = row.get("title", "")
+            if title not in cache:
+                cache[title] = resolve_naver_article(title)
+                time.sleep(0.08)
+            if cache[title]:
+                row["naverLink"] = cache[title]
+    return categories
+
 def title_similarity(a, b):
     norm = lambda s: re.sub(r"[^가-힣a-z0-9]", "", (s or "").lower())
     aa, bb = norm(a), norm(b)
@@ -348,6 +411,7 @@ def main():
                 candidates[cat].extend(rows)
 
         categories = deduplicate_across_categories(candidates)
+        categories = attach_naver_links(categories)
         for name in categories:
             categories[name] = choose_diverse(categories[name], 10)
 
