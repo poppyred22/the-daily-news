@@ -82,6 +82,23 @@ function story(x,i,featured){
   const expanded=window.openStoryLink===x.link;
   return '<article class="story"><div class="storytop"><span class="source">'+author+'</span><span>'+dateText+'</span></div><button class="story-title" type="button" data-open="'+i+'" aria-expanded="'+(expanded?'true':'false')+'">'+title+'</button>'+(expanded?'<div class="story-detail"><p class="detail-summary">'+description+'</p><a class="original-link" href="'+href+'" target="_blank" rel="noopener noreferrer">원문 기사 보기 ↗</a></div>':'')+'<div class="storybottom"><span>'+categoryLabel+'</span><button class="save" type="button" data-save="'+i+'" aria-label="기사 저장">☆</button></div></article>';
 }
+function favoritePreferenceScore(x,category){
+  if(!Array.isArray(saved)||!saved.length) return 0;
+  const stop=new Set(["오늘","어제","이번","지난","관련","대한","통해","위해","경우","이후","당시","현재","최근","기자","밝혔다","전했다","설명했다","발표했다","말했다","한국","서울","정부","기업","사회","세계","사건","사고","문화","생활"]);
+  const words=s=>String(s||"").toLowerCase().match(/[가-힣]{2,8}|[a-z]{3,}/g)||[];
+  const counts={};
+  for(const item of saved){
+    for(const w of new Set(words((item.title||"")+" "+(item.description||"")))){
+      if(!stop.has(w)) counts[w]=(counts[w]||0)+1;
+    }
+  }
+  const article=new Set(words((x.title||"")+" "+(x.description||"")));
+  let score=0;
+  for(const w of article) if(counts[w]) score+=Math.min(4,counts[w])*1.5;
+  const sameCategory=saved.filter(s=>s.category===category).length;
+  if(sameCategory) score+=Math.min(3,sameCategory)*0.8;
+  return Math.min(8,score);
+}
 function pickScore(x,category){
   const t=((x.title||"")+" "+(x.description||"")).toLowerCase();
   const signals=[
