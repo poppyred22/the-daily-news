@@ -158,6 +158,8 @@ def article_score(category, row):
     elif category == "IT 과학":
         if re.search(r"AI|인공지능|반도체|로봇|우주|의료기술|신약|배터리|데이터센터|보안|개인정보|스마트폰|자율주행|양자|과학|기술", text, re.I):
             score += 3
+    if row.get("priority"):
+        score += 10
     if len(row["description"]) > 100:
         score += 1
     return score
@@ -188,6 +190,8 @@ def main():
                 diagnostics[source + ":" + category] = {"ok": True, "today_items": len(rows)}
                 for row in rows:
                     combined = row["title"] + " " + row["description"]
+                    if re.search(r"기뢰|폭탄|폭발물|총기|권총|소총|탄약|수류탄|콜라색 소변|피투성이|시신|시체|참수|절단|훼손", combined):
+                        continue
                     if category == "사건 사고" and (not event_pattern.search(combined) or re.search(r"증시|주가|코스피|코스닥|장관 후보자|검찰개혁|특검법|조작기소|시상식|수상|성폭행|성범죄|강간|성추행", combined)):
                         continue
                     if category == "생활 문화" and (article_score(category, row) < 2 or re.search(r"주식|증시|코스피|코스닥|증권|투자자|특검|검찰|대통령|국회|장관|정당|후보자|살해|폭행|화재|사망|사건", combined)):
