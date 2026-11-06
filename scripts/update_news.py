@@ -223,6 +223,43 @@ def fetch_naver_popular(target_date):
 
 
 
+
+def fetch_naver_search_rss(query, category, target_date):
+    # Keep only Naver-hosted articles; the RSS link is the article destination.
+    params = urlencode({"where": "rss", "query": query, "field": 0, "sort": 1})
+    url = "https://newssearch.naver.com/search.naver?" + params
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (compatible; TheDailyNews/1.0)",
+        "Accept": "application/rss+xml, application/xml, text/xml, */*",
+    })
+    with urllib.request.urlopen(req, timeout=12) as response:
+        payload = response.read(3 * 1024 * 1024 + 1)
+    if len(payload) > 3 * 1024 * 1024:
+        raise ValueError("Naver News RSS too large")
+    root = ET.fromstring(payload)
+    rows = []
+    for node in root.iter():
+        if local_name(node.tag) != "item":
+            continue
+        title = clean_text(child_text(node, {"title"}))
+        link = child_text(node, {"link"})
+        dt = parse_date(child_text(node, {"pubdate"}))
+        if not title or not link or not dt or dt.date().isoformat() != target_date:
+            continue
+        if not re.match(r"^https?://(?:n\.)?news\.naver\.com/(?:mnews/)?article/", link):
+            continue
+        description = clean_text(child_text(node, {"description"}))
+        rows.append({
+            "title": title,
+            "link": link.split("?")[0],
+            "naverLink": link.split("?")[0],
+            "pubDate": dt.isoformat(),
+            "author": "네이버뉴스",
+            "description": description[:700],
+            "category": category,
+        })
+    return rows
+
 class NaverSectionParser(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -410,40 +447,25 @@ def main():
         categories = {name: [] for name in FEEDS}
         candidates = {name: [] for name in FEEDS}
 
-        # Collect the articles from Naver News section pages themselves.
-        # Every published general-news link is therefore a direct Naver article URL.
-        section_map = {
-            "사회": 102,
-            "생활 문화": 103,
-            "세계": 104,
-            "IT 과학": 105,
+        # Search Naver News RSS directly. Only Naver-hosted article URLs are kept.
+        query_map = {
+            "사건 사고": ["사고 화재 구조", "사건 사고 경찰 소방"],
+            "사회": ["사회 정책 노동 교육 복지", "지역 주민 사회"],
+            "생활 문화": ["생활 문화 소비자 물가 여행", "생활 문화 화제"],
+            "세계": ["세계 국제 외교"],
+            "IT 과학": ["IT 과학 기술 인공지능"],
         }
-        section_rows = {}
-        for category, section_id in section_map.items():
-            try:
-                rows = fetch_naver_section(section_id, target_date)
-                section_rows[category] = rows
-                diagnostics[f"{target_date}:네이버뉴스:{category}"] = {"ok": True, "items": len(rows)}
-            except Exception as exc:
-                section_rows[category] = []
-                diagnostics[f"{target_date}:네이버뉴스:{category}"] = {"ok": False, "error": str(exc)[:180]}
-
-        # Split Naver's society section into general society and incidents/accidents.
-        for row in section_rows.get("사회", []):
-            combined = row["title"]
-            if re.search(r"기뢰|폭탄|폭발물|총기|권총|소총|탄약|수류탄|피투성이|시신|시체|참수|절단|훼손", combined):
-                continue
-            if event_pattern.search(combined):
-                row["category"] = "사건 사고"
-                candidates["사건 사고"].append(row)
-            else:
-                row["category"] = "사회"
-                candidates["사회"].append(row)
-
-        for category in ("생활 문화", "세계", "IT 과학"):
-            for row in section_rows.get(category, []):
-                row["category"] = category
-                candidates[category].append(row)
+        for category, queries in query_map.items():
+            collected = []
+            for query in queries:
+                try:
+                    rows = fetch_naver_search_rss(query, category, target_date)
+                    collected.extend(rows)
+                    diagnostics[f"{target_date}:네이버RSS:{category}:{query}"] = {"ok": True, "items": len(rows)}
+                except Exception as exc:
+                    diagnostics[f"{target_date}:네이버RSS:{category}:{query}"] = {"ok": False, "error": str(exc)[:180]}
+                time.sleep(0.15)
+            candidates[category].extend(collected)
 
         if day_key == "today":
             try:
@@ -457,11 +479,7 @@ def main():
 
 
         categories = deduplicate_across_categories(candidates)
-        # Do not publish general stories without a verified direct Naver News article URL.
-        for rows in categories.values():
-            for row in rows:
-                if not re.search(r"(?:^|//)(?:n\.)?news\.naver\.com/article/", row.get("naverLink", "")):
-                    row["naverLink"] = row.get("link", "")
+        # Every story here already has a verified direct Naver News URL.
         for name in categories:
             categories[name] = choose_diverse(categories[name], 10)
 
