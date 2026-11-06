@@ -268,8 +268,9 @@ class NaverSectionParser(HTMLParser):
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
         href = attrs.get("href", "")
-        if tag == "a" and re.search(r"n\.news\.naver\.com/article/|news\.naver\.com/article/", href):
-            self.current = {"link": href.split("?")[0], "title": ""}
+        if tag == "a" and re.search(r"(?:https?:)?//(?:n\.)?news\.naver\.com/(?:mnews/)?article/|/(?:mnews/)?article/", href):
+            link = urljoin("https://n.news.naver.com", href).split("?")[0]
+            self.current = {"link": link, "title": ""}
     def handle_data(self, data):
         if self.current is not None:
             self.current["title"] += data
@@ -277,7 +278,7 @@ class NaverSectionParser(HTMLParser):
         if tag == "a" and self.current is not None:
             title = clean_text(self.current["title"])
             link = self.current["link"]
-            if title and link.startswith("https://") and title not in ("기사보기", "본문 바로가기"):
+            if title and re.match(r"^https://(?:n\.)?news\.naver\.com/(?:mnews/)?article/\d+/\d+", link) and title not in ("기사보기", "본문 바로가기"):
                 self.rows.append({"title": title, "link": link})
             self.current = None
 
@@ -447,25 +448,27 @@ def main():
         categories = {name: [] for name in FEEDS}
         candidates = {name: [] for name in FEEDS}
 
-        # Search Naver News RSS directly. Only Naver-hosted article URLs are kept.
-        query_map = {
-            "사건 사고": ["사고 화재 구조", "사건 사고 경찰 소방"],
-            "사회": ["사회 정책 노동 교육 복지", "지역 주민 사회"],
-            "생활 문화": ["생활 문화 소비자 물가 여행", "생활 문화 화제"],
-            "세계": ["세계 국제 외교"],
-            "IT 과학": ["IT 과학 기술 인공지능"],
+        # Collect directly from Naver's live section pages. Keep only Naver article URLs.
+        section_map = {
+            "사회": 102,
+            "생활 문화": 103,
+            "세계": 104,
+            "IT 과학": 105,
         }
-        for category, queries in query_map.items():
-            collected = []
-            for query in queries:
-                try:
-                    rows = fetch_naver_search_rss(query, category, target_date)
-                    collected.extend(rows)
-                    diagnostics[f"{target_date}:네이버RSS:{category}:{query}"] = {"ok": True, "items": len(rows)}
-                except Exception as exc:
-                    diagnostics[f"{target_date}:네이버RSS:{category}:{query}"] = {"ok": False, "error": str(exc)[:180]}
-                time.sleep(0.15)
-            candidates[category].extend(collected)
+        for category, section_id in section_map.items():
+            try:
+                rows = fetch_naver_section(section_id, target_date)
+                for row in rows:
+                    row["category"] = category
+                candidates[category].extend(rows)
+                diagnostics[f"{target_date}:네이버섹션:{category}"] = {"ok": True, "items": len(rows)}
+            except Exception as exc:
+                diagnostics[f"{target_date}:네이버섹션:{category}"] = {"ok": False, "error": str(exc)[:180]}
+
+        # Split accident/crime stories out of the Society section without duplicating them.
+        society_rows = candidates["사회"]
+        candidates["사건 사고"] = [row for row in society_rows if event_pattern.search(row.get("title", ""))]
+        candidates["사회"] = [row for row in society_rows if not event_pattern.search(row.get("title", ""))]
 
         if day_key == "today":
             try:
@@ -531,7 +534,7 @@ def main():
     for name, status in diagnostics.items():
         print("FEED " + name + "=" + json.dumps(status, ensure_ascii=False))
     if not any(item["ok"] for item in diagnostics.values()):
-        raise SystemExit("All RSS feeds failed; refusing to publish an empty feed.")
+        raise SystemExit("All Naver section and ranking feeds failed; refusing to publish an empty feed.")
 
 if __name__ == "__main__":
     main()
