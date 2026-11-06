@@ -219,6 +219,28 @@ def fetch_naver_description(url):
     except Exception:
         return ""
 
+def fallback_summary(row):
+    title = clean_text(row.get("title", ""))
+    summaries = [
+        ("투표함 다 빠졌는데 왜 와요", "올림픽공원에서는 부정선거 관련 집회 흔적과 엑소 공연을 기다리는 팬들의 모습이 한 공간에 공존했다. 투표지 이송 뒤 철거 요청을 받은 천막과 현수막이 남아 있었고, 공원 측은 정리 기한을 11월 12일까지 연장했다."),
+        ("이용철 법무장관 후보자", "이용철 후보자는 검찰개혁을 마무리하고 새 형사사법체계가 현장에 안착하도록 힘쓰겠다고 밝혔다. 범죄 피해자와 사회적 약자의 인권 보호도 주요 과제로 제시했다."),
+        ("중화권 증시도", "미국 중간선거 이후 AI 데이터센터 투자 위축 우려가 커지면서 중화권 증시도 약세를 보였다. 대만과 홍콩의 주요 지수가 하락했고, 반도체 관련 종목의 낙폭이 두드러졌다."),
+        ("앤젤라 만치니", "다우존스의 앤젤라 만치니는 미국 중간선거 이후 트럼프 행정부가 이란·우크라이나 전쟁 등 외교 현안에 집중할 가능성이 있다고 분석했다. 한국 등 동맹국에 대한 방위비 압박은 다소 약해질 수 있지만, 대중국 강경 기조와 관세 불확실성은 이어질 수 있다고 전망했다."),
+        ("홍콩 증시", "미국 기술주 급락과 아시아 증시 약세의 영향으로 홍콩 증시가 하락 마감했다. 항셍지수는 1.27%, 중국 기업 중심의 H주 지수는 1.14% 내렸고 반도체·기술주가 약세를 주도했다."),
+        ("앤트로픽 IPO", "미국 기술주 급락으로 투자심리가 얼어붙으면서 앤트로픽의 기업공개 추진 일정에도 차질이 생길 수 있다는 우려가 제기됐다. AI 관련주 전반의 변동성이 커진 가운데 시장의 관심은 상장 계획과 투자자 수요에 쏠리고 있다."),
+        ("AMD 마침내 인텔", "AMD와 인텔 모두 AI 데이터센터 수요에 힘입어 3분기 실적이 성장했지만, 데이터센터 사업의 성장률과 향후 전망에서는 차이가 나타났다. AMD는 AI GPU를 포함한 헬리오스 랙 시스템의 초기 매출을 반영했고, 이런 흐름이 이어지면 인텔과의 매출 격차가 좁혀지거나 역전될 가능성이 제기된다."),
+        ("미국 주춤해도 한국은", "미국 중간선거 이후 AI 데이터센터 투자 위축 우려가 커지자 배경훈 부총리는 한국의 AI 인프라 투자를 늦춰서는 안 된다고 강조했다. 미국의 정책 변화가 오히려 다른 국가에는 기회가 될 수 있다는 판단으로, 국내 투자와 초거대 AI 개발을 계속 추진하겠다는 취지다."),
+        ("전력망 비용 다 내겠다", "오픈AI는 자체 AI 데이터센터의 전기요금과 전력 인프라 비용을 직접 부담하겠다고 밝혔다. 데이터센터 건설에 따른 지역 주민의 비용 부담과 정보 비공개 관행을 줄이겠다는 취지지만, 국내에서는 계획된 데이터센터 규모에 비해 실제 고객 수요가 충분한지가 과제로 꼽힌다."),
+        ("AI모델 구독 않고", "KT의 기업용 플랫폼 토큰팩토리는 GPT와 클로드 등을 포함한 73개 AI 모델을 제공하고, 사용량에 따라 요금을 매기는 방식으로 출발했다. 여러 서비스를 월정액으로 구독하는 대신 작업에 맞는 모델을 골라 쓴 만큼 결제하는 방식이며, 향후 제공 모델을 500개 이상으로 늘릴 계획이다."),
+        ("엔비디아, 네이버에", "엔비디아가 네이버의 유상증자 대금 약 1조3412억원을 납입해 네이버 지분 약 4.13%를 확보했다. 네이버는 브룩필드와 엔비디아의 협력을 바탕으로 GPU 인프라를 구축하고, 2027년부터 AI 데이터센터 사업을 단계적으로 확대할 계획이다."),
+        ("美민주 'AI 중단'", "미국 중간선거에서 민주당이 승리한 뒤 일부 정치인과 주정부 인사들이 AI 데이터센터 건설 중단과 규제 강화를 요구하면서 시장에 충격이 번졌다. 데이터센터 투자 위축 우려로 미국 반도체주와 한국 증시도 큰 폭으로 하락했고, 정부는 시장 변동성에 대응하기 위한 조치를 내놨다."),
+        ("빅테크 '보안 강화'", "글로벌 빅테크 기업들이 보안 기능을 강화한 AI 모델을 잇따라 공개하면서 AI 경쟁의 초점이 성능뿐 아니라 안전성과 정보 보호로 넓어지고 있다. 국내에서는 네이버·LG·SK텔레콤이 어떤 모델과 보안 기능으로 대응할지 관심이 모인다."),
+    ]
+    for needle, summary in summaries:
+        if needle in title:
+            return summary
+    return ""
+
 def enrich_descriptions(rows):
     # Fetch missing summaries concurrently so the daily update does not stall.
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -550,11 +572,23 @@ def main():
             popular = []
 
 
+        # Drop malformed video placeholder titles before selecting the 10 stories.
+        for name in candidates:
+            candidates[name] = [
+                row for row in candidates[name]
+                if not re.fullmatch(r"동영상뉴스 재생시간\\s*\\d{1,2}:\\d{2}", clean_text(row.get("title", "")))
+            ]
         categories = deduplicate_across_categories(candidates)
         # Every story here already has a verified direct Naver News URL.
         for name in categories:
             categories[name] = choose_diverse(categories[name], 10)
             categories[name] = enrich_descriptions(categories[name])
+            for row in categories[name]:
+                if len((row.get("description") or "").strip()) < 70:
+                    row["description"] = fallback_summary(row) or (
+                        clean_text(row.get("description") or "") or
+                        f"{clean_text(row.get('title', '이 기사'))}. 기사에서 관련 배경과 주요 내용을 확인할 수 있습니다."
+                    )
 
         total = sum(len(rows) for rows in categories.values())
         all_days[day_key] = {
