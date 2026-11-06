@@ -17,6 +17,7 @@ nav{display:flex;gap:7px;overflow:auto;padding:3px 0 15px;scrollbar-width:none}n
 <main><div class="tools"><input id="search" class="search" placeholder="기사 제목 또는 키워드 검색"><button id="refresh" class="btn">새로고침 ↻</button></div>
 <nav id="tabs"></nav><div class="meta"><span id="count">기사를 불러오는 중</span><span id="sort">최신순</span></div><section id="feed"><div class="empty">최신 뉴스를 불러오고 있어요…</div></section><div class="foot">THE DAILY NEWS · 개인 뉴스 브리핑</div></main>
 <script>
+window.NEWS_DATA = null; // UPDATED_AUTOMATICALLY_BY_NEWS_WORKFLOW
 const categories=[["전체",""],["사회","사회"],["생활·문화","생활 문화"],["사건·사고","사건 사고"],["세계","세계"],["IT·과학","IT 과학"]];
 let category="",items=[],saved=JSON.parse(localStorage.getItem("tdn_saved")||"[]"),showSaved=false;
 const $=s=>document.querySelector(s);
@@ -29,42 +30,23 @@ function seoulDateKey(value){
 function drawTabs(){ $("#tabs").innerHTML=categories.map(([label,q])=>'<button class="'+(category===q?'active':'')+'" data-q="'+q+'">'+label+'</button>').join('')+'<button data-saved="1" class="'+(showSaved?'active':'')+'">★ 저장한 기사</button>'; }
 async function load(){
   const todayKey=seoulDateKey(new Date());
-  window.dailyLoading=true;
-  window.dailyCategoryItems={};
-  items=[];
-  $("#count").textContent="오늘 뉴스 확인 중";
-  $("#feed").innerHTML='<div class="empty">오늘의 뉴스를 불러오고 있어요…</div>';
-  try{
-    let response;
-    let data;
-    let lastError;
-    for(const url of ["./news.json?v="+Date.now(),"https://raw.githubusercontent.com/poppyred22/the-daily-news/main/news.json?v="+Date.now()]){
-      try{
-        response=await fetch(url,{cache:"no-store"});
-        if(!response.ok)throw new Error("뉴스 파일 응답 오류 ("+response.status+")");
-        data=await response.json();
-        break;
-      }catch(err){lastError=err;}
-    }
-    if(!data)throw lastError||new Error("뉴스 데이터를 찾을 수 없어요.");
-    if(data.date!==todayKey){
-      window.dailyLoading=false;
-      $("#count").textContent="오늘 뉴스 업데이트 대기 중";
-      $("#feed").innerHTML='<div class="empty">오늘 기사 데이터를 갱신하고 있어요.<br>잠시 후 새로고침해 주세요.</div>';
-      return;
-    }
-    window.dailyCategoryItems=data.categories||{};
-    items=category===""?Object.values(window.dailyCategoryItems).flat():window.dailyCategoryItems[category]||[];
-    window.dailyLoading=false;
-    render();
-    const total=Object.values(window.dailyCategoryItems).reduce((sum,rows)=>sum+(rows||[]).length,0);
-    $("#count").textContent=total+"개 · 오늘 기사 · "+(data.generatedAt||"").replace("T"," ").slice(0,16)+" 기준";
-  }catch(error){
-    window.dailyLoading=false;
-    $("#count").textContent="뉴스 연결 오류";
-    $("#feed").innerHTML='<div class="empty">오늘의 뉴스 데이터를 불러오지 못했어요.<br>'+esc(error?.message||"연결 오류")+'</div>';
-    console.error("Daily News load failed:",error);
+  window.dailyLoading=false;
+  const data=window.NEWS_DATA;
+  if(!data){
+    $("#count").textContent="오늘 뉴스 데이터 준비 중";
+    $("#feed").innerHTML='<div class="empty">오늘의 뉴스 데이터를 준비하고 있어요.<br>잠시 후 다시 열어 주세요.</div>';
+    return;
   }
+  if(data.date!==todayKey){
+    $("#count").textContent="오늘 뉴스 업데이트 대기 중";
+    $("#feed").innerHTML='<div class="empty">오늘 기사 데이터를 갱신하고 있어요.<br>잠시 후 다시 열어 주세요.</div>';
+    return;
+  }
+  window.dailyCategoryItems=data.categories||{};
+  items=category===""?Object.values(window.dailyCategoryItems).flat():(window.dailyCategoryItems[category]||[]);
+  render();
+  const total=Object.values(window.dailyCategoryItems).reduce((sum,rows)=>sum+(rows||[]).length,0);
+  $("#count").textContent=total+"개 · 오늘 기사 · "+(data.generatedAt||"").replace("T"," ").slice(0,16)+" 기준";
 }
 function pickScore(x){
   const t=((x.title||"")+" "+(x.description||"")).toLowerCase();
