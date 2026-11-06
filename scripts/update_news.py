@@ -557,6 +557,7 @@ def choose_diverse(rows, limit=10):
     return sorted(chosen[:limit], key=lambda row: row["pubDate"], reverse=True)
 
 def main():
+    # Build with the current Asia/Seoul date so the homepage never rejects stale data.
     today = datetime.now(KST).date()
     yesterday = today.fromordinal(today.toordinal() - 1)
     targets = [
