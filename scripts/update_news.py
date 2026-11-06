@@ -619,6 +619,41 @@ def main():
                         diagnostics[f"{target_date}:네이버RSS:{category}:{query}"] = {"ok": True, "items": len(rows)}
                     except Exception as exc:
                         diagnostics[f"{target_date}:네이버RSS:{category}:{query}"] = {"ok": False, "error": str(exc)[:180]}
+            # If Naver RSS is unavailable or returns too few dated results, use
+            # established publisher RSS feeds for the same date, then resolve each
+            # headline to a verified direct Naver News article URL.
+            fallback_jobs = []
+            with ThreadPoolExecutor(max_workers=12) as pool:
+                for category, feeds in FEEDS.items():
+                    if len(candidates[category]) >= 10:
+                        continue
+                    for source, feed_url in feeds:
+                        fallback_jobs.append((category, source, feed_url,
+                            pool.submit(fetch_feed, source, feed_url, target_date)))
+                for category, source, feed_url, future in fallback_jobs:
+                    try:
+                        rows = future.result()
+                        for row in rows:
+                            row["category"] = category
+                        candidates[category].extend(rows)
+                        diagnostics[f"{target_date}:보조RSS:{category}:{source}"] = {"ok": True, "items": len(rows)}
+                    except Exception as exc:
+                        diagnostics[f"{target_date}:보조RSS:{category}:{source}"] = {"ok": False, "error": str(exc)[:180]}
+
+            # Never publish a publisher URL as the requested Naver original link.
+            # Resolve only a bounded set of dated candidates to avoid excessive requests.
+            for category in candidates:
+                candidates[category].sort(key=lambda row: row.get("pubDate", ""), reverse=True)
+                candidates[category] = candidates[category][:18]
+            attach_naver_links(candidates)
+            for category in candidates:
+                verified = []
+                for row in candidates[category]:
+                    naver_link = row.get("naverLink", "")
+                    if naver_link.startswith("https://") and "news.naver.com/" in naver_link:
+                        row["link"] = naver_link
+                        verified.append(row)
+                candidates[category] = verified
             popular = []
 
         # Drop malformed video placeholder titles before selecting the 10 stories.
