@@ -222,6 +222,58 @@ def fetch_naver_popular(target_date):
     return rows
 
 
+
+class NaverSectionParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.rows = []
+        self.current = None
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        href = attrs.get("href", "")
+        if tag == "a" and re.search(r"n\\.news\\.naver\\.com/article/|news\\.naver\\.com/article/", href):
+            self.current = {"link": href.split("?")[0], "title": ""}
+    def handle_data(self, data):
+        if self.current is not None:
+            self.current["title"] += data
+    def handle_endtag(self, tag):
+        if tag == "a" and self.current is not None:
+            title = clean_text(self.current["title"])
+            link = self.current["link"]
+            if title and link.startswith("https://") and title not in ("기사보기", "본문 바로가기"):
+                self.rows.append({"title": title, "link": link})
+            self.current = None
+
+def fetch_naver_section(section_id, target_date):
+    url = "https://news.naver.com/section/" + str(section_id)
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+        "Referer": "https://news.naver.com/",
+    })
+    with urllib.request.urlopen(req, timeout=12) as response:
+        payload = response.read(5 * 1024 * 1024 + 1)
+    if len(payload) > 5 * 1024 * 1024:
+        raise ValueError("Naver section page too large")
+    parser = NaverSectionParser()
+    parser.feed(payload.decode("utf-8", errors="replace"))
+    rows, seen = [], set()
+    for item in parser.rows:
+        key = item["link"].split("?")[0]
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append({
+            "title": item["title"],
+            "link": item["link"],
+            "naverLink": item["link"],
+            "pubDate": datetime.now(KST).isoformat(),
+            "author": "네이버뉴스",
+            "description": "",
+        })
+    if not rows:
+        raise ValueError("No direct Naver article links found in section " + str(section_id))
+    return rows
+
 class NaverSearchParser(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -358,24 +410,41 @@ def main():
         target_date = day_value.isoformat()
         categories = {name: [] for name in FEEDS}
         candidates = {name: [] for name in FEEDS}
-        for category, sources in FEEDS.items():
-            for source, url in sources:
-                try:
-                    rows = fetch_feed(source, url, target_date)
-                    diagnostics[f"{target_date}:{source}:{category}"] = {"ok": True, "items": len(rows)}
-                    for row in rows:
-                        combined = row["title"] + " " + row["description"]
-                        if re.search(r"기뢰|폭탄|폭발물|총기|권총|소총|탄약|수류탄|콜라색 소변|피투성이|시신|시체|참수|절단|훼손", combined):
-                            continue
-                        if category == "사건 사고" and (not event_pattern.search(combined) or re.search(r"증시|주가|코스피|코스닥|장관 후보자|검찰개혁|특검법|조작기소|시상식|수상|성폭행|성범죄|강간|성추행", combined)):
-                            continue
-                        if category == "생활 문화" and (article_score(category, row) < 2 or re.search(r"주식|증시|코스피|코스닥|증권|투자자|특검|검찰|대통령|국회|장관|정당|후보자|살해|폭행|화재|사망|사건", combined)):
-                            continue
-                        row["category"] = category
-                        candidates[category].append(row)
-                except Exception as exc:
-                    diagnostics[f"{target_date}:{source}:{category}"] = {"ok": False, "error": str(exc)[:180]}
-                time.sleep(0.12)
+
+        # Collect the articles from Naver News section pages themselves.
+        # Every published general-news link is therefore a direct Naver article URL.
+        section_map = {
+            "사회": 102,
+            "생활 문화": 103,
+            "세계": 104,
+            "IT 과학": 105,
+        }
+        section_rows = {}
+        for category, section_id in section_map.items():
+            try:
+                rows = fetch_naver_section(section_id, target_date)
+                section_rows[category] = rows
+                diagnostics[f"{target_date}:네이버뉴스:{category}"] = {"ok": True, "items": len(rows)}
+            except Exception as exc:
+                section_rows[category] = []
+                diagnostics[f"{target_date}:네이버뉴스:{category}"] = {"ok": False, "error": str(exc)[:180]}
+
+        # Split Naver's society section into general society and incidents/accidents.
+        for row in section_rows.get("사회", []):
+            combined = row["title"]
+            if re.search(r"기뢰|폭탄|폭발물|총기|권총|소총|탄약|수류탄|피투성이|시신|시체|참수|절단|훼손", combined):
+                continue
+            if event_pattern.search(combined):
+                row["category"] = "사건 사고"
+                candidates["사건 사고"].append(row)
+            else:
+                row["category"] = "사회"
+                candidates["사회"].append(row)
+
+        for category in ("생활 문화", "세계", "IT 과학"):
+            for row in section_rows.get(category, []):
+                row["category"] = category
+                candidates[category].append(row)
 
         if day_key == "today":
             try:
@@ -411,7 +480,11 @@ def main():
                 candidates[cat].extend(rows)
 
         categories = deduplicate_across_categories(candidates)
-        categories = attach_naver_links(categories)
+        # Do not publish general stories without a verified direct Naver News article URL.
+        for rows in categories.values():
+            for row in rows:
+                if not re.search(r"(?:^|//)(?:n\\.)?news\\.naver\\.com/article/", row.get("naverLink", "")):
+                    row["naverLink"] = row.get("link", "")
         for name in categories:
             categories[name] = choose_diverse(categories[name], 10)
 
