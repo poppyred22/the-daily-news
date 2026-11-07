@@ -60,7 +60,7 @@ async function load(){
     $("#feed").innerHTML='<div class="empty">오전 10시 업데이트 대기중</div>';
     return;
   }
-  window.dailyDays=[data.days.today,data.days.yesterday].filter(Boolean).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  window.dailyDays=[data.days.today,data.days.yesterday,data.days.archive].filter(Boolean).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   drawDateTabs();
   items=window.dailyDays.flatMap(day=>Object.values(day.categories||{}).flat());
   render();
