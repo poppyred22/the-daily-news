@@ -182,6 +182,17 @@ def clean_text(value):
     value = re.sub(r"<[^>]+>", " ", value)
     return re.sub(r"\s+", " ", value).strip()
 
+
+def is_malformed_title(value):
+    title = clean_text(value)
+    if not title or "\ufffd" in title:
+        return True
+    # Reject common Korean-character decoding artifacts while allowing ordinary English headlines.
+    if re.search(r"[Ȁ-ɏ]|[\x80-\x9f]|Ã.|Â.|Ð.", title):
+        return True
+    return False
+
+
 def fetch_feed(source, url, target_date):
     req = urllib.request.Request(url, headers={
         "User-Agent": "TheDailyNews/1.0 (+https://poppyred22.github.io/the-daily-news/)",
@@ -935,7 +946,8 @@ def main():
         for name in candidates:
             candidates[name] = [
                 row for row in candidates[name]
-                if clean_text(row.get("title", "")) != "동영상뉴스"
+                if not is_malformed_title(row.get("title", ""))
+                and clean_text(row.get("title", "")) != "동영상뉴스"
                 and not re.fullmatch(r"동영상뉴스 재생시간\s*\d{1,2}:\d{2}", clean_text(row.get("title", "")))
                 and not re.search(r"흉기|칼 들고|칼로|칼을|칼에|칼부림|찔렀|찔러|찌른|총기|권총|소총|총격|전차|탱크|무기|미사일|폭탄|기뢰|핵잠|청해부대|공습|군함|잠수함|전투기|군사|전쟁|음란물|성착취|성폭력|성범죄|포르노|성인물|감량|살 쫙|폭식|탄력 고민|운동 효과|야식 습관|다이어트|체중 감량|몸매", clean_text(row.get("title", "")))
             ]
@@ -1025,7 +1037,7 @@ def main():
         for category in FEEDS:
             pool, seen = [], set()
             for row in (new_yesterday.get("categories", {}).get(category, []) + saved_categories.get(category, []) + (saved_categories.get("생활·문화", []) + saved_categories.get("생활 문화", []) if category == "생활" else [])):
-                if restricted_title.search(clean_text(row.get("title", ""))):
+                if restricted_title.search(clean_text(row.get("title", ""))) or is_malformed_title(row.get("title", "")):
                     continue
                 key = (row.get("naverLink") or row.get("link") or "").split("?", 1)[0]
                 if key and key in seen:
@@ -1056,7 +1068,7 @@ def main():
         for category in FEEDS:
             pool, seen = [], set()
             for row in (new_archive.get("categories", {}).get(category, []) + saved_archive_categories.get(category, []) + (saved_archive_categories.get("생활·문화", []) + saved_archive_categories.get("생활 문화", []) if category == "생활" else [])):
-                if restricted_title.search(clean_text(row.get("title", ""))):
+                if restricted_title.search(clean_text(row.get("title", ""))) or is_malformed_title(row.get("title", "")):
                     continue
                 key = (row.get("naverLink") or row.get("link") or "").split("?", 1)[0]
                 if key and key in seen:
