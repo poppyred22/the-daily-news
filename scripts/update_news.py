@@ -628,9 +628,11 @@ def main():
     except Exception:
         pass
     yesterday = today.fromordinal(today.toordinal() - 1)
+    archive_day = today.fromordinal(today.toordinal() - 2)
     targets = [
         ("today", today),
         ("yesterday", yesterday),
+        ("archive", archive_day),
     ]
     weekday_ko = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
     all_days = {}
@@ -847,7 +849,7 @@ def main():
         all_days[day_key] = {
             "date": target_date,
             "weekday": weekday_ko[day_value.weekday()],
-            "label": ("오늘" if day_key == "today" else "어제") + " · " + f"{day_value.month}월 {day_value.day}일 " + weekday_ko[day_value.weekday()],
+            "label": ("오늘" if day_key == "today" else "어제" if day_key == "yesterday" else "보관") + " · " + f"{day_value.month}월 {day_value.day}일 " + weekday_ko[day_value.weekday()],
             "total": total,
             "categories": categories,
             "popular": popular,
