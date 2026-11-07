@@ -160,7 +160,8 @@ function render(){
     return;
   }
   const allDays=window.dailyDays||[];
-  const todayKey=seoulDateKey(new Date());\n  const yesterdayKey=dateOffsetKey(todayKey,-1);\n  const days=dayFilter==="all"?allDays:allDays.filter(d=>d.date===(dayFilter==="today"?todayKey:yesterdayKey));
+  const todayKey=seoulDateKey(new Date());
+  const yesterdayKey=dateOffsetKey(todayKey,-1);\n  const days=dayFilter==="all"?allDays:allDays.filter(d=>d.date===(dayFilter==="today"?todayKey:yesterdayKey));
   const categoryOrder=categories.filter(c=>c[1]).map(c=>c[1]);
   const rendered=[];
   let html="";
