@@ -10,6 +10,7 @@ import urllib.request
 import http.client
 import socket
 import ssl
+from threading import Lock
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -18,6 +19,8 @@ from urllib.parse import urljoin, urlencode, urlsplit
 from zoneinfo import ZoneInfo
 
 KST = ZoneInfo("Asia/Seoul")
+_NAVER_DNS_CACHE = {}
+_NAVER_DNS_LOCK = Lock()
 
 
 def naver_fetch(req, timeout=12):
@@ -28,16 +31,23 @@ def naver_fetch(req, timeout=12):
         with urllib.request.urlopen(req, timeout=timeout) as response:
             return response.read()
     try:
-        dns_req = urllib.request.Request(
-            "https://dns.google/resolve?name=" + host + "&type=A",
-            headers={"Accept": "application/dns-json", "User-Agent": "Mozilla/5.0"},
-        )
-        with urllib.request.urlopen(dns_req, timeout=6) as dns_response:
-            answers = json.loads(dns_response.read().decode("utf-8")).get("Answer", [])
-        ips = [item.get("data") for item in answers
-               if item.get("type") == 1 and re.match(r"^\d+\.\d+\.\d+\.\d+$", item.get("data", ""))]
-        if not ips:
-            raise OSError("DNS-over-HTTPS returned no IPv4 address for " + host)
+        with _NAVER_DNS_LOCK:
+            cached_ip = _NAVER_DNS_CACHE.get(host)
+        if cached_ip:
+            ips = [cached_ip]
+        else:
+            dns_req = urllib.request.Request(
+                "https://dns.google/resolve?name=" + host + "&type=A",
+                headers={"Accept": "application/dns-json", "User-Agent": "Mozilla/5.0"},
+            )
+            with urllib.request.urlopen(dns_req, timeout=4) as dns_response:
+                answers = json.loads(dns_response.read().decode("utf-8")).get("Answer", [])
+            ips = [item.get("data") for item in answers
+                   if item.get("type") == 1 and re.match(r"^\d+\.\d+\.\d+\.\d+$", item.get("data", ""))]
+            if not ips:
+                raise OSError("DNS-over-HTTPS returned no IPv4 address for " + host)
+            with _NAVER_DNS_LOCK:
+                _NAVER_DNS_CACHE[host] = ips[0]
         conn = http.client.HTTPSConnection(host, timeout=timeout, context=ssl.create_default_context())
         conn._create_connection = lambda address, timeout=None, source_address=None: socket.create_connection(
             (ips[0], address[1]), timeout, source_address
@@ -254,8 +264,7 @@ def fetch_naver_description(url):
         "Referer": "https://news.naver.com/",
     })
     try:
-        with urllib.request.urlopen(req, timeout=5) as response:
-            payload = response.read(900 * 1024 + 1)
+        payload = naver_fetch(req, timeout=6)[:900 * 1024 + 1]
         if len(payload) > 900 * 1024:
             return ""
         parser = NaverArticleTextParser()
@@ -413,8 +422,7 @@ def fetch_naver_popular(target_date):
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
         "Referer": "https://news.naver.com/",
     })
-    with urllib.request.urlopen(req, timeout=10) as response:
-        payload = response.read(4 * 1024 * 1024 + 1)
+    payload = naver_fetch(req, timeout=8)[:4 * 1024 * 1024 + 1]
     if len(payload) > 4 * 1024 * 1024:
         raise ValueError("Naver ranking page too large")
     parser = NaverRankingParser()
@@ -565,7 +573,7 @@ def resolve_naver_article(title):
     target = re.sub(r"[^가-힣a-z0-9]", "", title.lower())
     # Naver search can intermittently time out or throttle bursts of requests.
     # Retry gently and use a smaller worker pool in attach_naver_links.
-    for attempt in range(3):
+    for attempt in range(2):
         req = urllib.request.Request(url, headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
             "Referer": "https://search.naver.com/",
@@ -585,8 +593,8 @@ def resolve_naver_article(title):
                     best_link, best_ratio = row["link"], ratio
             return best_link if best_ratio >= 0.78 else ""
         except Exception:
-            if attempt < 2:
-                time.sleep(1.5 * (attempt + 1))
+            if attempt < 1:
+                time.sleep(0.5)
     return ""
 
 def attach_naver_links(categories):
@@ -600,7 +608,7 @@ def attach_naver_links(categories):
                 row["naverLink"] = original
             elif row.get("title"):
                 titles.add(row["title"])
-    with ThreadPoolExecutor(max_workers=12) as pool:
+    with ThreadPoolExecutor(max_workers=6) as pool:
         futures = {title: pool.submit(resolve_naver_article, title) for title in titles}
         for title, future in futures.items():
             try:
@@ -845,7 +853,7 @@ def main():
                 # Resolve only a bounded set of dated candidates to avoid excessive requests.
                 for category in candidates:
                     candidates[category].sort(key=lambda row: row.get("pubDate", ""), reverse=True)
-                    candidates[category] = candidates[category][:80]
+                    candidates[category] = candidates[category][:30]
                 attach_naver_links(candidates)
                 for category in candidates:
                     verified = []
