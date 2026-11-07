@@ -490,7 +490,7 @@ def fetch_naver_search_rss(query, category, target_date):
         dt = parse_date(child_text(node, {"pubdate"}))
         if not title or not link or not dt or dt.date().isoformat() != target_date:
             continue
-        if not re.match(r"^https?://(?:n\\.)?news\\.naver\\.com/(?:mnews/)?article/", link):
+        if not re.match(r"^https?://(?:n\.)?news\.naver\.com/(?:mnews/)?article/", link):
             continue
         description = clean_text(child_text(node, {"description"}))
         rows.append({
