@@ -741,12 +741,12 @@ def main():
                 # Naver's live section pages only show current stories. Query News RSS
                 # and retain only items actually published on the target date.
                 yesterday_queries = {
-                    "사건 사고": ["사고 화재 구조 수사 사건", "범죄 경찰 사건 사고"],
-                    "사회": ["사회 정책 교육 노동 복지", "국회 정부 주민 노동"],
-                    "생활": ["생활 건강 날씨 소비자 물가 교통", "주거 임금 복지 음식 여행 생활"],
-                    "문화": ["문화 예술 전시 공연 영화 음악", "책 출판 박물관 축제 문화재 한지"],
-                    "세계": ["국제 세계 외교 경제 기후", "미국 중국 일본 유럽 국제"],
-                    "IT 과학": ["IT 과학 AI 인공지능 반도체", "기술 로봇 우주 과학"],
+                    "사건 사고": ["사고 화재 구조 수사 사건", "범죄 경찰 사건 사고", "교통사고 안전 재난 응급 구조", "법원 판결 사기 절도 피해"],
+                    "사회": ["사회 정책 교육 노동 복지", "국회 정부 주민 노동", "청년 노인 지역 주민 복지 의료", "학교 교육 인권 시민 정책"],
+                    "생활": ["생활 건강 날씨 소비자 물가 교통", "주거 임금 복지 음식 여행 생활", "장바구니 물가 요금 전월세 대출 금리", "직장 노동 돌봄 육아 교육비 소비자"],
+                    "문화": ["문화 예술 전시 공연 영화 음악", "책 출판 박물관 축제 문화재 한지", "연예 배우 가수 방송 아이돌 공연", "미술 사진 문학 유네스코 문화재"],
+                    "세계": ["국제 세계 외교 경제 기후", "미국 중국 일본 유럽 국제", "세계 경제 무역 관세 기후 정상회담", "국제사회 외교 분쟁 글로벌 기업"],
+                    "IT 과학": ["IT 과학 AI 인공지능 반도체", "기술 로봇 우주 과학", "정보통신 보안 개인정보 인터넷 디지털", "배터리 데이터센터 스마트폰 신기술"],
                 }
                 jobs = []
                 with ThreadPoolExecutor(max_workers=10) as pool:
@@ -887,6 +887,37 @@ def main():
             new_yesterday["categories"] = merged
             new_yesterday["total"] = merged_total
             all_days["yesterday"] = new_yesterday
+
+    # Preserve and top up the two-day archive as well as yesterday.
+    saved_archive = (previous_data.get("days") or {}).get("archive")
+    new_archive = all_days.get("archive", {})
+    if saved_archive and saved_archive.get("date") == archive_day.isoformat():
+        saved_archive_categories = saved_archive.get("categories", {})
+        restricted_title = re.compile(r"흉기|칼 들고|칼로|칼을|칼에|칼부림|찔렀|찔러|찌른|총기|권총|소총|총격|전차|탱크|무기|미사일|폭탄|기뢰|핵잠|청해부대|공습|군함|잠수함|전투기|군사|전쟁|음란물|성착취|성폭력|성범죄|포르노|성인물|감량|살 쫙|폭식|탄력 고민|운동 효과|야식 습관|다이어트|체중 감량|몸매")
+        merged_archive = {}
+        for category in FEEDS:
+            pool, seen = [], set()
+            for row in (new_archive.get("categories", {}).get(category, []) + saved_archive_categories.get(category, [])):
+                if restricted_title.search(clean_text(row.get("title", ""))):
+                    continue
+                key = (row.get("naverLink") or row.get("link") or "").split("?", 1)[0]
+                if key and key in seen:
+                    continue
+                if key:
+                    seen.add(key)
+                copy = dict(row)
+                copy["category"] = category
+                pool.append(copy)
+            merged_archive[category] = choose_diverse(pool, 10)
+            for row in merged_archive[category]:
+                desc = clean_text(row.get("description") or "")
+                if "기사에서 관련 배경과 주요 내용을 확인할 수 있습니다" in desc or title_similarity(desc, row.get("title", "")) > 0.78:
+                    row["description"] = fallback_summary(row) or desc
+        merged_archive_total = sum(len(rows) for rows in merged_archive.values())
+        if merged_archive_total >= new_archive.get("total", 0):
+            new_archive["categories"] = merged_archive
+            new_archive["total"] = merged_archive_total
+            all_days["archive"] = new_archive
 
     total = sum(day["total"] for day in all_days.values())
     result = {
