@@ -188,7 +188,7 @@ function render(){
         html+='</div>';
       }
       if(rest.length){
-        html+='<div class="sectionhead rest-heading"><strong>나머지 기사</strong><span>'+(catName==='생활·문화'?'생활밀접순 ':'최신순 ')+rest.length+'개</span></div><div class="restlist">';
+        html+='<div class="sectionhead rest-heading"><strong>기사</strong><span>'+(catName==='생활·문화'?'생활밀접순 ':'최신순 ')+rest.length+'개</span></div><div class="restlist">';
         for(const p of rest){const idx=rendered.push(p.x)-1;html+=story(p.x,idx,false);}
         html+='</div>';
       }
