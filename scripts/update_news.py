@@ -155,6 +155,32 @@ def parse_date(raw):
     except Exception:
         return None
 
+def decode_html_payload(payload):
+    """Decode Korean news HTML using its declared charset, with safe fallbacks."""
+    head = payload[:4096].decode("ascii", errors="ignore")
+    match = re.search(
+        r'<meta[^>]+(?:charset\\s*=\\s*["\\']?([\\w-]+)|content=["\\'][^"\\']*charset=([\\w-]+))',
+        head,
+        re.IGNORECASE,
+    )
+    declared = next((value for value in (match.groups() if match else ()) if value), "").lower()
+    if declared in ("euc-kr", "ks_c_5601-1987", "ks_c_5601", "cp949", "x-windows-949"):
+        for encoding in ("cp949", "euc-kr"):
+            try:
+                return payload.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+    try:
+        return payload.decode("utf-8")
+    except UnicodeDecodeError:
+        for encoding in ("cp949", "euc-kr"):
+            try:
+                return payload.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+    return payload.decode("utf-8", errors="replace")
+
+
 def clean_text(value):
     value = html.unescape(value or "")
     value = re.sub(r"<[^>]+>", " ", value)
@@ -284,7 +310,7 @@ def fetch_naver_description(url):
         if len(payload) > 900 * 1024:
             return ""
         parser = NaverArticleTextParser()
-        parser.feed(payload.decode("utf-8", errors="replace"))
+        parser.feed(decode_html_payload(payload))
         meta = clean_text(parser.meta_description)
         body = clean_text(" ".join(parser.article_parts))
         text = body if len(body) >= 70 else meta
@@ -442,7 +468,7 @@ def fetch_naver_popular(target_date):
     if len(payload) > 4 * 1024 * 1024:
         raise ValueError("Naver ranking page too large")
     parser = NaverRankingParser()
-    parser.feed(payload.decode("utf-8", errors="replace"))
+    parser.feed(decode_html_payload(payload))
     rows, seen = [], set()
     for row in parser.rows:
         key = re.sub(r"\W+", "", row["title"].lower())
@@ -557,7 +583,7 @@ def fetch_naver_section_archive(section_id, target_date):
         if len(payload) > 5 * 1024 * 1024:
             raise ValueError("Naver dated section page too large")
         parser = NaverSectionParser()
-        parser.feed(payload.decode("utf-8", errors="replace"))
+        parser.feed(decode_html_payload(payload))
         added = 0
         for item in parser.rows:
             link = item["link"].split("?")[0]
@@ -583,7 +609,7 @@ def fetch_naver_section(section_id, target_date):
     if len(payload) > 5 * 1024 * 1024:
         raise ValueError("Naver section page too large")
     parser = NaverSectionParser()
-    parser.feed(payload.decode("utf-8", errors="replace"))
+    parser.feed(decode_html_payload(payload))
     rows, seen = [], set()
     for item in parser.rows:
         key = item["link"].split("?")[0]
@@ -639,7 +665,7 @@ def resolve_naver_article(title):
             if len(payload) > 2 * 1024 * 1024:
                 return ""
             parser = NaverSearchParser()
-            parser.feed(payload.decode("utf-8", errors="replace"))
+            parser.feed(decode_html_payload(payload))
             best_link, best_ratio = "", 0.0
             for row in parser.rows:
                 candidate = re.sub(r"[^가-힣a-z0-9]", "", row["title"].lower())
