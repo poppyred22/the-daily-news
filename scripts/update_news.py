@@ -787,7 +787,7 @@ def main():
                 # Resolve only a bounded set of dated candidates to avoid excessive requests.
                 for category in candidates:
                     candidates[category].sort(key=lambda row: row.get("pubDate", ""), reverse=True)
-                    candidates[category] = candidates[category][:18]
+                    candidates[category] = candidates[category][:40]
                 attach_naver_links(candidates)
                 for category in candidates:
                     verified = []
