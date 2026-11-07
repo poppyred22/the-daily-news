@@ -25,17 +25,25 @@ let category="",items=[],saved=[],showSaved=false,showPopular=false,dayFilter="y
 try{saved=JSON.parse(localStorage.getItem("tdn_saved")||"[]");if(!Array.isArray(saved))saved=[];}catch(e){saved=[];}
 const $=s=>document.querySelector(s);
 function compactDate(date){const d=new Date(date+"T12:00:00+09:00");const p=new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",weekday:"short"}).formatToParts(d);const get=k=>p.find(x=>x.type===k)?.value||"";return get("month")+"/"+get("day")+" ("+get("weekday")+")";}
-$("#today").textContent=compactDate(window.NEWS_DATA.days?.yesterday?.date||window.NEWS_DATA.date);
+$("#today").textContent=compactDate(seoulDateKey(new Date()));
 function seoulDateKey(value){
   const parts=new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(value instanceof Date?value:new Date(value));
   const part=k=>parts.find(p=>p.type===k)?.value||"";
   return part("year")+"-"+part("month")+"-"+part("day");
 }
 function drawTabs(){ $("#tabs").innerHTML=categories.map(([label,q])=>'<button class="'+(!showPopular&&category===q?'active':'')+'" data-q="'+q+'">'+label+'</button>').join('')+'<button data-popular="1" class="'+(showPopular?'active':'')+'">네이버 인기</button><button data-saved="1" class="'+(showSaved?'active':'')+'">★ 저장한 기사</button>'; }
+function dateOffsetKey(key,offset){
+ const d=new Date(key+"T12:00:00+09:00");
+ d.setDate(d.getDate()+offset);
+ return seoulDateKey(d);
+}
 function drawDateTabs(){
  const days=window.dailyDays||[];
- const today=days[0],yesterday=days[1];
- const options=[{key:"today",label:today?"오늘 · "+compactDate(today.date):"오늘"},{key:"yesterday",label:yesterday?compactDate(yesterday.date):"어제"},{key:"all",label:"전체 날짜"}];
+ const todayKey=seoulDateKey(new Date());
+ const yesterdayKey=dateOffsetKey(todayKey,-1);
+ const today=days.find(d=>d.date===todayKey);
+ const yesterday=days.find(d=>d.date===yesterdayKey);
+ const options=[{key:"today",label:"오늘 · "+compactDate(todayKey)},{key:"yesterday",label:compactDate(yesterdayKey)},{key:"all",label:"전체 날짜"}];
  $("#date-tabs").innerHTML=options.map(o=>'<button type="button" data-day="'+o.key+'" class="'+(dayFilter===o.key?'active':'')+'">'+esc(o.label)+'</button>').join('');
 }
 async function load(){
@@ -52,7 +60,7 @@ async function load(){
     $("#feed").innerHTML='<div class="empty">오전 10시 업데이트 대기중</div>';
     return;
   }
-  window.dailyDays=[data.days.today,data.days.yesterday].filter(Boolean);
+  window.dailyDays=[data.days.today,data.days.yesterday].filter(Boolean).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   drawDateTabs();
   items=window.dailyDays.flatMap(day=>Object.values(day.categories||{}).flat());
   render();
@@ -152,14 +160,14 @@ function render(){
     return;
   }
   const allDays=window.dailyDays||[];
-  const days=dayFilter==="all"?allDays:allDays.filter(d=>d.date===(dayFilter==="today"?allDays[0]?.date:allDays[1]?.date));
+  const todayKey=seoulDateKey(new Date());\n  const yesterdayKey=dateOffsetKey(todayKey,-1);\n  const days=dayFilter==="all"?allDays:allDays.filter(d=>d.date===(dayFilter==="today"?todayKey:yesterdayKey));
   const categoryOrder=categories.filter(c=>c[1]).map(c=>c[1]);
   const rendered=[];
   let html="";
   let visibleCount=0;
   for(const day of days){
     const dayCategories=day.categories||{};
-    html+='<section class="day-block"><div class="dayhead"><strong>'+esc(compactDate(day.date))+'</strong><span>'+Object.values(dayCategories).reduce((n,rows)=>n+(rows||[]).length,0)+'개</span></div>';
+    html+='<section class="day-block"><div class="dayhead"><strong>'+(day.date===todayKey?'오늘 · ':'')+esc(compactDate(day.date))+'</strong><span>'+Object.values(dayCategories).reduce((n,rows)=>n+(rows||[]).length,0)+'개</span></div>';
     const names=category===""?categoryOrder:[category];
     for(const catName of names){
       const rows=(dayCategories[catName]||[]).filter(matches);
@@ -173,7 +181,7 @@ function render(){
         html+='<div class="categoryhead"><strong>'+esc(label)+'</strong><span>'+rows.length+'개</span></div>';
       }
       if(picks.length){
-        html+='<div class="sectionhead"><strong>'+(day.date===window.NEWS_DATA.date?'오늘의 픽':'어제의 픽')+'</strong><span>'+picks.length+'개</span></div><div class="featured">';
+        html+='<div class="sectionhead"><strong>'+(day.date===todayKey?'오늘의 픽':'어제의 픽')+'</strong><span>'+picks.length+'개</span></div><div class="featured">';
         for(const p of picks){const idx=rendered.push(p.x)-1;html+=story(p.x,idx,true);}
         html+='</div>';
       }
