@@ -7,14 +7,57 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import html
 import urllib.request
+import http.client
+import socket
+import ssl
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
-from urllib.parse import urljoin, urlencode
+from urllib.parse import urljoin, urlencode, urlsplit
 from zoneinfo import ZoneInfo
 
 KST = ZoneInfo("Asia/Seoul")
+
+
+def naver_fetch(req, timeout=12):
+    """Fetch Naver pages using DNS-over-HTTPS when the runner's resolver fails."""
+    parsed = urlsplit(req.full_url)
+    host = parsed.hostname or ""
+    if not host.endswith("naver.com"):
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            return response.read()
+    try:
+        dns_req = urllib.request.Request(
+            "https://dns.google/resolve?name=" + host + "&type=A",
+            headers={"Accept": "application/dns-json", "User-Agent": "Mozilla/5.0"},
+        )
+        with urllib.request.urlopen(dns_req, timeout=6) as dns_response:
+            answers = json.loads(dns_response.read().decode("utf-8")).get("Answer", [])
+        ips = [item.get("data") for item in answers
+               if item.get("type") == 1 and re.match(r"^\d+\.\d+\.\d+\.\d+$", item.get("data", ""))]
+        if not ips:
+            raise OSError("DNS-over-HTTPS returned no IPv4 address for " + host)
+        conn = http.client.HTTPSConnection(host, timeout=timeout, context=ssl.create_default_context())
+        conn._create_connection = lambda address, timeout=None, source_address=None: socket.create_connection(
+            (ips[0], address[1]), timeout, source_address
+        )
+        path = parsed.path or "/"
+        if parsed.query:
+            path += "?" + parsed.query
+        headers = dict(req.header_items())
+        headers.setdefault("User-Agent", "Mozilla/5.0")
+        conn.request(req.get_method(), path, body=req.data, headers=headers)
+        response = conn.getresponse()
+        payload = response.read()
+        if response.status >= 400:
+            raise OSError("Naver HTTP " + str(response.status))
+        conn.close()
+        return payload
+    except Exception:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            return response.read()
+
 TODAY = datetime.now(KST).date().isoformat()
 FEEDS = {
     "사건 사고": [
@@ -418,8 +461,7 @@ def fetch_naver_search_rss(query, category, target_date):
         "User-Agent": "Mozilla/5.0 (compatible; TheDailyNews/1.0)",
         "Accept": "application/rss+xml, application/xml, text/xml, */*",
     })
-    with urllib.request.urlopen(req, timeout=12) as response:
-        payload = response.read(3 * 1024 * 1024 + 1)
+    payload = naver_fetch(req, timeout=12)[:3 * 1024 * 1024 + 1]
     if len(payload) > 3 * 1024 * 1024:
         raise ValueError("Naver News RSS too large")
     root = ET.fromstring(payload)
@@ -474,8 +516,7 @@ def fetch_naver_section(section_id, target_date):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
         "Referer": "https://news.naver.com/",
     })
-    with urllib.request.urlopen(req, timeout=12) as response:
-        payload = response.read(5 * 1024 * 1024 + 1)
+    payload = naver_fetch(req, timeout=12)[:5 * 1024 * 1024 + 1]
     if len(payload) > 5 * 1024 * 1024:
         raise ValueError("Naver section page too large")
     parser = NaverSectionParser()
@@ -531,8 +572,7 @@ def resolve_naver_article(title):
             "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
         })
         try:
-            with urllib.request.urlopen(req, timeout=12) as response:
-                payload = response.read(2 * 1024 * 1024 + 1)
+            payload = naver_fetch(req, timeout=12)[:2 * 1024 * 1024 + 1]
             if len(payload) > 2 * 1024 * 1024:
                 return ""
             parser = NaverSearchParser()
