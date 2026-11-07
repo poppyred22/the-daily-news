@@ -158,12 +158,8 @@ def parse_date(raw):
 def decode_html_payload(payload):
     """Decode Korean news HTML using its declared charset, with safe fallbacks."""
     head = payload[:4096].decode("ascii", errors="ignore")
-    match = re.search(
-        r'<meta[^>]+(?:charset\\s*=\\s*["\\']?([\\w-]+)|content=["\\'][^"\\']*charset=([\\w-]+))',
-        head,
-        re.IGNORECASE,
-    )
-    declared = next((value for value in (match.groups() if match else ()) if value), "").lower()
+    match = re.search("charset\\s*=\\s*[\\\"']?([\\w-]+)", head, re.IGNORECASE)
+    declared = match.group(1).lower() if match else ""
     if declared in ("euc-kr", "ks_c_5601-1987", "ks_c_5601", "cp949", "x-windows-949"):
         for encoding in ("cp949", "euc-kr"):
             try:
