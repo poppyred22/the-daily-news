@@ -611,8 +611,8 @@ def deduplicate_across_categories(categories):
             result[best["category"]].append(best)
     return result
 
-def choose_diverse(rows, limit=10):
-    ranked = sorted(rows, key=lambda row: (article_score(row["category"], row), row["pubDate"]), reverse=True)
+def choose_diverse(rows, limit=10, ranking_category=None):
+    ranked = sorted(rows, key=lambda row: (article_score(ranking_category or row["category"], row), row["pubDate"]), reverse=True)
     chosen, deferred, source_counts = [], [], {}
     for row in ranked:
         source = row["author"]
@@ -878,7 +878,7 @@ def main():
         merged = {}
         for category in FEEDS:
             pool, seen = [], set()
-            for row in (new_yesterday.get("categories", {}).get(category, []) + saved_categories.get(category, [])):
+            for row in (new_yesterday.get("categories", {}).get(category, []) + saved_categories.get(category, []) + (saved_categories.get("생활·문화", []) + saved_categories.get("생활 문화", []) if category == "생활" else [])):
                 if restricted_title.search(clean_text(row.get("title", ""))):
                     continue
                 key = (row.get("naverLink") or row.get("link") or "").split("?", 1)[0]
@@ -909,7 +909,7 @@ def main():
         merged_archive = {}
         for category in FEEDS:
             pool, seen = [], set()
-            for row in (new_archive.get("categories", {}).get(category, []) + saved_archive_categories.get(category, [])):
+            for row in (new_archive.get("categories", {}).get(category, []) + saved_archive_categories.get(category, []) + (saved_archive_categories.get("생활·문화", []) + saved_archive_categories.get("생활 문화", []) if category == "생활" else [])):
                 if restricted_title.search(clean_text(row.get("title", ""))):
                     continue
                 key = (row.get("naverLink") or row.get("link") or "").split("?", 1)[0]
@@ -930,6 +930,39 @@ def main():
             new_archive["categories"] = merged_archive
             new_archive["total"] = merged_archive_total
             all_days["archive"] = new_archive
+
+    # Publish 생활 and 문화 as one 생활·문화 category, retaining only the
+    # ten stories most relevant to everyday life. This also normalizes older
+    # saved archives that used either split or combined category names.
+    for day in all_days.values():
+        original = day.get("categories", {})
+        pool = (original.get("생활", []) + original.get("문화", [])
+                + original.get("생활·문화", []) + original.get("생활 문화", []))
+        unique, seen = [], set()
+        for row in pool:
+            key = (row.get("naverLink") or row.get("link") or "").split("?", 1)[0]
+            if key and key in seen:
+                continue
+            if key:
+                seen.add(key)
+            copy = dict(row)
+            copy["category"] = "생활·문화"
+            unique.append(copy)
+        lifestyle = choose_diverse(unique, 10, ranking_category="생활")
+        normalized = {}
+        inserted = False
+        for name, rows in original.items():
+            if name == "생활":
+                normalized["생활·문화"] = lifestyle
+                inserted = True
+            elif name in ("문화", "생활·문화", "생활 문화"):
+                continue
+            else:
+                normalized[name] = rows
+        if not inserted:
+            normalized["생활·문화"] = lifestyle
+        day["categories"] = normalized
+        day["total"] = sum(len(rows) for rows in normalized.values())
 
     total = sum(day["total"] for day in all_days.values())
     result = {
