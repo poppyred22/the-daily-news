@@ -400,7 +400,19 @@ def fetch_naver_popular(target_date):
 
 def fetch_naver_search_rss(query, category, target_date):
     # Keep only Naver-hosted articles; the RSS link is the article destination.
-    params = urlencode({"where": "rss", "query": query, "field": 0, "sort": 1})
+    # Apply Naver's custom date range before fetching RSS results. Without
+    # ds/de, the RSS feed returns only the newest matches, so older target-day
+    # stories are pushed out by newer news and archive categories stay empty.
+    date_param = target_date.replace("-", ".")
+    params = urlencode({
+        "where": "rss",
+        "query": query,
+        "field": 0,
+        "sort": 1,
+        "pd": 3,
+        "ds": date_param,
+        "de": date_param,
+    })
     url = "https://newssearch.naver.com/search.naver?" + params
     req = urllib.request.Request(url, headers={
         "User-Agent": "Mozilla/5.0 (compatible; TheDailyNews/1.0)",
