@@ -36,16 +36,32 @@ def naver_fetch(req, timeout=12):
         if cached_ip:
             ips = [cached_ip]
         else:
-            dns_req = urllib.request.Request(
-                "https://dns.google/resolve?name=" + host + "&type=A",
-                headers={"Accept": "application/dns-json", "User-Agent": "Mozilla/5.0"},
-            )
-            with urllib.request.urlopen(dns_req, timeout=4) as dns_response:
-                answers = json.loads(dns_response.read().decode("utf-8")).get("Answer", [])
+            answers = []
+            # Query public DoH resolvers by their fixed IPs, so resolving the
+            # resolver hostname does not depend on the runner's broken DNS.
+            for resolver_host, resolver_ip in (("dns.google", "8.8.8.8"), ("cloudflare-dns.com", "1.1.1.1")):
+                dns_conn = http.client.HTTPSConnection(
+                    resolver_host, timeout=5, context=ssl.create_default_context()
+                )
+                dns_conn._create_connection = lambda address, timeout=None, source_address=None, ip=resolver_ip: socket.create_connection(
+                    (ip, address[1]), timeout, source_address
+                )
+                try:
+                    dns_conn.request(
+                        "GET", "/resolve?name=" + host + "&type=A",
+                        headers={"Accept": "application/dns-json", "Host": resolver_host},
+                    )
+                    dns_response = dns_conn.getresponse()
+                    if dns_response.status == 200:
+                        answers = json.loads(dns_response.read().decode("utf-8")).get("Answer", [])
+                        if answers:
+                            break
+                finally:
+                    dns_conn.close()
             ips = [item.get("data") for item in answers
                    if item.get("type") == 1 and re.match(r"^\d+\.\d+\.\d+\.\d+$", item.get("data", ""))]
             if not ips:
-                raise OSError("DNS-over-HTTPS returned no IPv4 address for " + host)
+                raise OSError("Direct-IP DNS-over-HTTPS returned no IPv4 address for " + host)
             with _NAVER_DNS_LOCK:
                 _NAVER_DNS_CACHE[host] = ips[0]
         conn = http.client.HTTPSConnection(host, timeout=timeout, context=ssl.create_default_context())
