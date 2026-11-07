@@ -521,27 +521,33 @@ class NaverSearchParser(HTMLParser):
 def resolve_naver_article(title):
     query = urlencode({"where": "news", "query": title})
     url = "https://search.naver.com/search.naver?" + query
-    req = urllib.request.Request(url, headers={
-        "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36",
-        "Referer": "https://www.naver.com/",
-    })
-    try:
-        with urllib.request.urlopen(req, timeout=5) as response:
-            payload = response.read(2 * 1024 * 1024 + 1)
-        if len(payload) > 2 * 1024 * 1024:
-            return ""
-        parser = NaverSearchParser()
-        parser.feed(payload.decode("utf-8", errors="replace"))
-        target = re.sub(r"[^가-힣a-z0-9]", "", title.lower())
-        best_link, best_ratio = "", 0.0
-        for row in parser.rows:
-            candidate = re.sub(r"[^가-힣a-z0-9]", "", row["title"].lower())
-            ratio = difflib.SequenceMatcher(None, target, candidate).ratio()
-            if ratio > best_ratio:
-                best_link, best_ratio = row["link"], ratio
-        return best_link if best_ratio >= 0.78 else ""
-    except Exception:
-        return ""
+    target = re.sub(r"[^가-힣a-z0-9]", "", title.lower())
+    # Naver search can intermittently time out or throttle bursts of requests.
+    # Retry gently and use a smaller worker pool in attach_naver_links.
+    for attempt in range(3):
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+            "Referer": "https://search.naver.com/",
+            "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=12) as response:
+                payload = response.read(2 * 1024 * 1024 + 1)
+            if len(payload) > 2 * 1024 * 1024:
+                return ""
+            parser = NaverSearchParser()
+            parser.feed(payload.decode("utf-8", errors="replace"))
+            best_link, best_ratio = "", 0.0
+            for row in parser.rows:
+                candidate = re.sub(r"[^가-힣a-z0-9]", "", row["title"].lower())
+                ratio = difflib.SequenceMatcher(None, target, candidate).ratio()
+                if ratio > best_ratio:
+                    best_link, best_ratio = row["link"], ratio
+            return best_link if best_ratio >= 0.78 else ""
+        except Exception:
+            if attempt < 2:
+                time.sleep(1.5 * (attempt + 1))
+    return ""
 
 def attach_naver_links(categories):
     # Resolve distinct publisher headlines concurrently; only keep verified Naver URLs.
