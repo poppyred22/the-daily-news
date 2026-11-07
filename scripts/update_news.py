@@ -542,6 +542,37 @@ class NaverSectionParser(HTMLParser):
                 self.rows.append({"title": title, "link": link})
             self.current = None
 
+def fetch_naver_section_archive(section_id, target_date):
+    """Fetch a dated Naver News section archive without relying on search.naver.com."""
+    date_param = target_date.replace("-", "")
+    all_rows, seen = [], set()
+    for page in range(1, 4):
+        params = urlencode({"mode": "LSD", "mid": "sec", "sid1": str(section_id), "date": date_param, "page": page})
+        url = "https://news.naver.com/main/list.naver?" + params
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+            "Referer": "https://news.naver.com/",
+        })
+        payload = naver_fetch(req, timeout=12)[:5 * 1024 * 1024 + 1]
+        if len(payload) > 5 * 1024 * 1024:
+            raise ValueError("Naver dated section page too large")
+        parser = NaverSectionParser()
+        parser.feed(payload.decode("utf-8", errors="replace"))
+        added = 0
+        for item in parser.rows:
+            link = item["link"].split("?")[0]
+            if link in seen:
+                continue
+            seen.add(link)
+            added += 1
+            all_rows.append({"title": item["title"], "link": link, "naverLink": link,
+                "pubDate": target_date + "T12:00:00+09:00", "author": "네이버뉴스", "description": ""})
+        if added == 0:
+            break
+    if not all_rows:
+        raise ValueError("No dated Naver articles found for section " + str(section_id) + " on " + target_date)
+    return all_rows
+
 def fetch_naver_section(section_id, target_date):
     url = "https://news.naver.com/section/" + str(section_id)
     req = urllib.request.Request(url, headers={
@@ -828,65 +859,54 @@ def main():
                 candidates["사회"] = [row for row in society_rows if not event_pattern.search(row.get("title", ""))]
                 popular = []
             else:
-                # Naver's live section pages only show current stories. Query News RSS
-                # and retain only items actually published on the target date.
-                yesterday_queries = {
-                    "사건 사고": ["사고 화재 구조 수사 사건", "범죄 경찰 사건 사고", "교통사고 안전 재난 응급 구조", "법원 판결 사기 절도 피해", "화재 붕괴 추락 침수 사고", "검찰 기소 구속 재판 사건", "실종 구조 소방 응급실", "생활 안전 소비자 피해 사건"],
-                    "사회": ["사회 정책 교육 노동 복지", "국회 정부 주민 노동", "청년 노인 지역 주민 복지 의료", "학교 교육 인권 시민 정책", "정부 정책 제도 개편 발표", "지역 사회 주민 갈등 공공서비스", "노동 임금 비정규직 직장", "교육 대학 입시 학교 교사"],
-                    "생활": ["생활 건강 날씨 소비자 물가 교통", "주거 임금 복지 음식 여행 생활", "장바구니 물가 요금 전월세 대출 금리", "직장 노동 돌봄 육아 교육비 소비자", "식품 외식 마트 편의점 유통 가격", "건강 병원 의료 운동 식생활", "교통 대중교통 철도 버스 주차", "날씨 기온 한파 미세먼지 생활"],
-                    "문화": ["문화 예술 전시 공연 영화 음악", "책 출판 박물관 축제 문화재 한지", "연예 배우 가수 방송 아이돌 공연", "미술 사진 문학 유네스코 문화재", "뮤지컬 연극 클래식 국악 무용", "웹툰 애니메이션 게임 콘텐츠 OTT", "문화유산 발굴 복원 전통문화", "영화제 신작 드라마 예능 대중문화"],
-                    "세계": ["국제 세계 외교 경제 기후", "미국 중국 일본 유럽 국제", "세계 경제 무역 관세 기후 정상회담", "국제사회 외교 분쟁 글로벌 기업", "미국 정치 백악관 의회 국제뉴스", "중국 일본 대만 동남아 아시아", "유럽 중동 아프리카 국제 정세", "우크라이나 러시아 전쟁 외교"],
-                    "IT 과학": ["IT 과학 AI 인공지능 반도체", "기술 로봇 우주 과학", "정보통신 보안 개인정보 인터넷 디지털", "배터리 데이터센터 스마트폰 신기술", "소프트웨어 플랫폼 통신 모바일", "과학 연구 실험 우주 탐사", "반도체 디스플레이 전자 산업", "AI 로봇 자율주행 미래기술"],
-                }
-                jobs = []
-                with ThreadPoolExecutor(max_workers=10) as pool:
-                    for category, queries in yesterday_queries.items():
-                        for query in queries:
-                            jobs.append((category, query, pool.submit(fetch_naver_search_rss, query, category, target_date)))
-                    for category, query, future in jobs:
-                        try:
-                            rows = future.result()
-                            for row in rows:
-                                row["category"] = category
-                            candidates[category].extend(rows)
-                            diagnostics[f"{target_date}:네이버RSS:{category}:{query}"] = {"ok": True, "items": len(rows)}
-                        except Exception as exc:
-                            diagnostics[f"{target_date}:네이버RSS:{category}:{query}"] = {"ok": False, "error": str(exc)[:180]}
-                # If Naver RSS is unavailable or returns too few dated results, use
-                # established publisher RSS feeds for the same date, then resolve each
-                # headline to a verified direct Naver News article URL.
-                fallback_jobs = []
-                with ThreadPoolExecutor(max_workers=12) as pool:
-                    for category, feeds in FEEDS.items():
-                        if len(candidates[category]) >= 10:
-                            continue
-                        for source, feed_url in feeds:
-                            fallback_jobs.append((category, source, feed_url,
-                                pool.submit(fetch_feed, source, feed_url, target_date)))
-                    for category, source, feed_url, future in fallback_jobs:
-                        try:
-                            rows = future.result()
-                            for row in rows:
-                                row["category"] = category
-                            candidates[category].extend(rows)
-                            diagnostics[f"{target_date}:보조RSS:{category}:{source}"] = {"ok": True, "items": len(rows)}
-                        except Exception as exc:
-                            diagnostics[f"{target_date}:보조RSS:{category}:{source}"] = {"ok": False, "error": str(exc)[:180]}
-    
-                # Never publish a publisher URL as the requested Naver original link.
-                # Resolve only a bounded set of dated candidates to avoid excessive requests.
-                for category in candidates:
-                    candidates[category].sort(key=lambda row: row.get("pubDate", ""), reverse=True)
-                    candidates[category] = candidates[category][:30]
-                attach_naver_links(candidates)
-                for category in candidates:
-                    verified = []
-                    for row in candidates[category]:
-                        naver_link = row.get("naverLink", "")
-                        if naver_link.startswith("https://") and "news.naver.com/" in naver_link:
-                            row["link"] = naver_link
-                            verified.append(row)
-                    candidates[category] = verified
+                # Historical archive from Naver's dated section pages on news.naver.com.
+                # These pages provide direct Naver article URLs and avoid search.naver.com DNS.
+                section_map = {"사건 사고": 102, "사회": 102, "생활": 103, "문화": 103, "세계": 104, "IT 과학": 105}
+                culture_pattern = re.compile(r"전시|공연|콘서트|영화|드라마|배우|가수|앨범|음악|미술|박물관|미술관|축제|출판|책|작가|문학|문화재|유네스코|한지|공예|연극|뮤지컬|예술|문화|K-?pop|아이돌|웹툰|만화|방송|예능|무대|전통|콘텐츠|OTT|넷플릭스|애니메이션|팬덤|음원|음반|시사회|촬영|아티스트|패션|한복|전통의상|전통문화|디자인|대중문화|게임|국악|무용|발레|서예|사진|영화제|문화행사|박람회|작품")
+                for section_category, section_id in section_map.items():
+                    try:
+                        rows = fetch_naver_section_archive(section_id, target_date)
+                        diagnostics[f"{target_date}:네이버날짜별섹션:{section_id}"] = {"ok": True, "items": len(rows)}
+                        for row in rows:
+                            title = row.get("title", "")
+                            if section_id == 102:
+                                category = "사건 사고" if event_pattern.search(title) else "사회"
+                            elif section_id == 103:
+                                category = "문화" if culture_pattern.search(title) else "생활"
+                            else:
+                                category = section_category
+                            row["category"] = category
+                            candidates[category].append(row)
+                    except Exception as exc:
+                        diagnostics[f"{target_date}:네이버날짜별섹션:{section_id}"] = {"ok": False, "error": str(exc)[:180]}
+                # Use publisher feeds only to supplement short categories; retain verified Naver URLs only.
+                if any(len(candidates[name]) < 10 for name in FEEDS):
+                    fallback_jobs = []
+                    with ThreadPoolExecutor(max_workers=12) as pool:
+                        for category, feeds in FEEDS.items():
+                            if len(candidates[category]) >= 10:
+                                continue
+                            for source, feed_url in feeds:
+                                fallback_jobs.append((category, source, pool.submit(fetch_feed, source, feed_url, target_date)))
+                        for category, source, future in fallback_jobs:
+                            try:
+                                rows = future.result()
+                                for row in rows:
+                                    row["category"] = category
+                                candidates[category].extend(rows)
+                                diagnostics[f"{target_date}:보조RSS:{category}:{source}"] = {"ok": True, "items": len(rows)}
+                            except Exception as exc:
+                                diagnostics[f"{target_date}:보조RSS:{category}:{source}"] = {"ok": False, "error": str(exc)[:180]}
+                    for category in candidates:
+                        candidates[category].sort(key=lambda row: row.get("pubDate", ""), reverse=True)
+                        candidates[category] = candidates[category][:30]
+                    attach_naver_links(candidates)
+                    for category in candidates:
+                        candidates[category] = [row for row in candidates[category]
+                            if (row.get("naverLink") or "").startswith("https://")
+                            and "news.naver.com/" in row.get("naverLink", "")]
+                        for row in candidates[category]:
+                            row["link"] = row["naverLink"]
                 popular = []
 
         # Drop malformed video placeholder titles before selecting the 10 stories.
