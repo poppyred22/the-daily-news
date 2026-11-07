@@ -450,10 +450,8 @@ def fetch_naver_popular(target_date):
 
 
 def fetch_naver_search_rss(query, category, target_date):
-    # Keep only Naver-hosted articles; the RSS link is the article destination.
-    # Apply Naver's custom date range before fetching RSS results. Without
-    # ds/de, the RSS feed returns only the newest matches, so older target-day
-    # stories are pushed out by newer news and archive categories stay empty.
+    # Search RSS on Naver's primary search host first; the legacy newssearch
+    # hostname can fail DNS resolution in GitHub Actions.
     date_param = target_date.replace("-", ".")
     params = urlencode({
         "where": "rss",
@@ -464,15 +462,25 @@ def fetch_naver_search_rss(query, category, target_date):
         "ds": date_param,
         "de": date_param,
     })
-    url = "https://newssearch.naver.com/search.naver?" + params
-    req = urllib.request.Request(url, headers={
-        "User-Agent": "Mozilla/5.0 (compatible; TheDailyNews/1.0)",
-        "Accept": "application/rss+xml, application/xml, text/xml, */*",
-    })
-    payload = naver_fetch(req, timeout=12)[:3 * 1024 * 1024 + 1]
-    if len(payload) > 3 * 1024 * 1024:
-        raise ValueError("Naver News RSS too large")
-    root = ET.fromstring(payload)
+    last_error = None
+    payload = None
+    for host in ("search.naver.com", "newssearch.naver.com"):
+        url = "https://" + host + "/search.naver?" + params
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (compatible; TheDailyNews/1.0)",
+            "Accept": "application/rss+xml, application/xml, text/xml, */*",
+        })
+        try:
+            payload = naver_fetch(req, timeout=10)[:3 * 1024 * 1024 + 1]
+            if len(payload) > 3 * 1024 * 1024:
+                raise ValueError("Naver News RSS too large")
+            root = ET.fromstring(payload)
+            break
+        except Exception as exc:
+            last_error = exc
+            payload = None
+    if payload is None:
+        raise OSError("Naver RSS hosts unavailable: " + str(last_error))
     rows = []
     for node in root.iter():
         if local_name(node.tag) != "item":
@@ -482,7 +490,7 @@ def fetch_naver_search_rss(query, category, target_date):
         dt = parse_date(child_text(node, {"pubdate"}))
         if not title or not link or not dt or dt.date().isoformat() != target_date:
             continue
-        if not re.match(r"^https?://(?:n\.)?news\.naver\.com/(?:mnews/)?article/", link):
+        if not re.match(r"^https?://(?:n\\.)?news\\.naver\\.com/(?:mnews/)?article/", link):
             continue
         description = clean_text(child_text(node, {"description"}))
         rows.append({
